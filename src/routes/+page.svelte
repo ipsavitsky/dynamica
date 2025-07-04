@@ -2,6 +2,8 @@
   import type { ApexOptions } from "apexcharts";
   import { Chart } from "@flowbite-svelte-plugins/chart";
   import { Card, Button, Label, Input, Alert } from "flowbite-svelte";
+  import { ethers } from "ethers";
+  import { getDeltaJS, UNIT_DEC } from "$lib/utils";
 
   let amount = $state(1);
 
@@ -9,6 +11,47 @@
 
   const increment = () => (amount += 1);
   const decrement = () => (amount = Math.max(0, amount - 1));
+
+  // Mock contract, as we can't make live calls.
+  // Replace this with your actual contract instance.
+  const mockContract = {
+    getB: async (q_s: bigint[]) => {
+      // Mock implementation: alpha * (q0 + q1)
+      const alpha = 500000000000000000n; // 0.5
+      const sum = q_s[0] + q_s[1];
+      return (sum * alpha) / UNIT_DEC;
+    },
+    ln: async (val: bigint) => {
+      // Mock ln() using JS Math.log. This is a rough approximation.
+      const valFloat = parseFloat(ethers.formatUnits(val, 18));
+      const lnValFloat = Math.log(valFloat);
+      return ethers.parseUnits(lnValFloat.toString(), 18);
+    }
+  };
+
+  let price = $state("..."); // Initial state
+
+  $effect(() => {
+    const calculatePrice = async () => {
+      try {
+        // Mock values for demonstration.
+        // You would replace these with reactive state from your app.
+        const q0 = "100";
+        const q1 = "120";
+        const targetWad = "700000000000000000"; // 0.7
+        const first = true;
+
+        const delta = await getDeltaJS(q0, q1, targetWad, first, mockContract);
+
+        // Format the BigInt result for display.
+        price = parseFloat(ethers.formatUnits(delta, 18)).toFixed(2);
+      } catch (error) {
+        console.error("Error calculating price:", error);
+        price = "Error";
+      }
+    };
+    calculatePrice();
+  });
 
   const options: ApexOptions = {
     colors: ["#1A56DB", "#FDBA8C"],
@@ -112,10 +155,12 @@
   :global(input[type="number"]::-webkit-inner-spin-button),
   :global(input[type="number"]::-webkit-outer-spin-button) {
     -webkit-appearance: none;
+    appearance: none;
     margin: 0;
   }
   :global(input[type="number"]) {
     -moz-appearance: textfield;
+    appearance: textfield;
   }
 </style>
 
@@ -125,6 +170,9 @@
   </div>
   <Card class="h-full p-6">
     <form class="flex h-full flex-col justify-center">
+      <div class="mb-4 text-left">
+        <p class="text-4xl font-semibold text-gray-900 dark:text-white">${price}</p>
+      </div>
       <Label class="mb-4 space-y-2">
         <span>Amount</span>
         <div class="relative">

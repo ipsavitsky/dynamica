@@ -25,6 +25,7 @@
 	},
 	"dependencies": {
 		"@flowbite-svelte-plugins/chart": "^0.2.4",
+		"ethers": "^6.15.0",
 		"flowbite": "^3.1.2",
 		"flowbite-svelte": "^1.8.3",
 		"flowbite-svelte-icons": "^2.2.1"
