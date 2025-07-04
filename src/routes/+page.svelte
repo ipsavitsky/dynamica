@@ -1,8 +1,14 @@
 <script lang="ts">
   import type { ApexOptions } from "apexcharts";
   import { Chart } from "@flowbite-svelte-plugins/chart";
-  import { Card, A, Button, Dropdown, DropdownItem } from "flowbite-svelte";
-  import { UsersGroupOutline, ArrowUpOutline, ChevronDownOutline, ChevronRightOutline } from "flowbite-svelte-icons";
+  import { Card, Button, Label, Input, Alert } from "flowbite-svelte";
+
+  let amount = $state(1);
+
+  let isInvalid = $derived(amount <= 0);
+
+  const increment = () => (amount += 1);
+  const decrement = () => (amount = Math.max(0, amount - 1));
 
   const options: ApexOptions = {
     colors: ["#1A56DB", "#FDBA8C"],
@@ -11,26 +17,18 @@
         name: "Organic",
         color: "#1A56DB",
         data: [
-          { x: "Mon", y: 231 },
-          { x: "Tue", y: 122 },
-          { x: "Wed", y: 63 },
-          { x: "Thu", y: 421 },
-          { x: "Fri", y: 122 },
-          { x: "Sat", y: 323 },
-          { x: "Sun", y: 111 }
+          { x: "asset1", y: 231 },
+          { x: "asset2", y: 122 },
+          { x: "asset3", y: 63 }
         ]
       },
       {
         name: "Social media",
         color: "#FDBA8C",
         data: [
-          { x: "Mon", y: 232 },
-          { x: "Tue", y: 113 },
-          { x: "Wed", y: 341 },
-          { x: "Thu", y: 224 },
-          { x: "Fri", y: 522 },
-          { x: "Sat", y: 411 },
-          { x: "Sun", y: 243 }
+          { x: "asset1", y: 232 },
+          { x: "asset2", y: 113 },
+          { x: "asset3", y: 341 }
         ]
       }
     ],
@@ -109,49 +107,39 @@
   };
 </script>
 
-<Card class="p-4 md:p-6">
-  <div class="mb-4 flex justify-between border-b border-gray-200 pb-4 dark:border-gray-700">
-    <div class="flex items-center">
-      <div class="me-3 flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700">
-        <UsersGroupOutline class="h-6 w-6 text-gray-500 dark:text-gray-400" />
-      </div>
-      <div>
-        <h5 class="pb-1 text-2xl leading-none font-bold text-gray-900 dark:text-white">3.4k</h5>
-        <p class="text-sm font-normal text-gray-500 dark:text-gray-400">Leads generated per week</p>
-      </div>
-    </div>
-    <div>
-      <span class="inline-flex items-center rounded-md bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">
-        <ArrowUpOutline class="me-1.5 h-2.5 w-2.5" />
-        42.5%
-      </span>
-    </div>
+<style>
+  /* Hide spinner buttons from number input */
+  :global(input[type="number"]::-webkit-inner-spin-button),
+  :global(input[type="number"]::-webkit-outer-spin-button) {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  :global(input[type="number"]) {
+    -moz-appearance: textfield;
+  }
+</style>
+
+<div class="grid grid-cols-3 items-start gap-8 p-8">
+  <div class="col-span-2">
+    <Chart {options} />
   </div>
-  <div class="grid grid-cols-2">
-    <dl class="flex items-center">
-      <dt class="me-1 text-sm font-normal text-gray-500 dark:text-gray-400">Money spent:</dt>
-      <dd class="text-sm font-semibold text-gray-900 dark:text-white">$3,232</dd>
-    </dl>
-    <dl class="flex items-center justify-end">
-      <dt class="me-1 text-sm font-normal text-gray-500 dark:text-gray-400">Conversion rate:</dt>
-      <dd class="text-sm font-semibold text-gray-900 dark:text-white">1.2%</dd>
-    </dl>
-  </div>
-  <Chart {options} />
-  <div class="grid grid-cols-1 items-center justify-between border-t border-gray-200 dark:border-gray-700">
-    <div class="flex items-center justify-between pt-5">
-      <Button class="inline-flex items-center bg-transparent py-0 text-center text-sm font-medium text-gray-500 hover:bg-transparent hover:text-gray-900 focus:ring-transparent dark:bg-transparent dark:text-gray-400 dark:hover:bg-transparent dark:hover:text-white dark:focus:ring-transparent">Last 7 days<ChevronDownOutline class="m-2.5 ms-1.5 w-2.5" /></Button>
-      <Dropdown simple class="w-40" offset={-6}>
-        <DropdownItem>Yesterday</DropdownItem>
-        <DropdownItem>Today</DropdownItem>
-        <DropdownItem>Last 7 days</DropdownItem>
-        <DropdownItem>Last 30 days</DropdownItem>
-        <DropdownItem>Last 90 days</DropdownItem>
-      </Dropdown>
-      <A href="/" class="hover:text-primary-700 dark:hover:text-primary-500 rounded-lg px-3 py-2 text-sm font-semibold uppercase hover:bg-gray-100 hover:no-underline dark:border-gray-700 dark:hover:bg-gray-700 dark:focus:ring-gray-700">
-        Leads Report
-        <ChevronRightOutline class="ms-1.5 h-2.5 w-2.5" />
-      </A>
-    </div>
-  </div>
-</Card>
+  <Card class="h-full p-6">
+    <form class="flex h-full flex-col justify-center">
+      <Label class="mb-4 space-y-2">
+        <span>Amount</span>
+        <div class="relative">
+          <Input bind:value={amount} type="number" name="amount" class="w-full pe-24" required />
+          <div class="absolute inset-y-0 end-0 flex items-center pe-2">
+            <span class="ms-2 text-gray-500 dark:text-gray-400">$</span>
+            <Button onclick={decrement} type="button" color="light" class="!p-1.5 text-xs !font-normal">-1$</Button>
+            <Button onclick={increment} type="button" color="light" class="!p-1.5 ms-1 text-xs !font-normal">+1$</Button>
+          </div>
+        </div>
+        {#if isInvalid}
+            <Alert>Amount must be a positive number.</Alert>
+        {/if}
+      </Label>
+      <Button type="submit" size="xl" class="w-full" disabled={isInvalid}>Buy</Button>
+    </form>
+  </Card>
+</div>

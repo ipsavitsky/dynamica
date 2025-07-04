@@ -1,7 +1,6 @@
 <script lang="ts">
 	import '../app.css';
 	import { Navbar, NavBrand, NavUl, NavLi, NavHamburger } from 'flowbite-svelte';
-	
 	let { children } = $props();
 </script>
 
@@ -15,9 +14,8 @@
 			</NavBrand>
 			<NavHamburger />
 			<NavUl>
-				<NavLi href="/" active={true}>Home</NavLi>
+				<NavLi href="/">Home</NavLi>
 				<NavLi href="/about">About</NavLi>
-				<NavLi href="/services">Services</NavLi>
 				<NavLi href="/contact">Contact</NavLi>
 			</NavUl>
 		</Navbar>
