@@ -164,8 +164,8 @@
 	<header class="w-full theme-card border-b theme-border shadow-sm">
 		<Navbar class="max-w-screen-xl mx-auto px-4">
 			<NavBrand href="/">
-				<span class="self-center whitespace-nowrap text-xl font-semibold theme-text">
-				Dynamica
+				<span class="self-center whitespace-nowrap text-xl font-semibold theme-text" style="font-family: 'Zen Dots', cursive;">
+				dynamica
 				</span>
 			</NavBrand>
 			<NavHamburger />
