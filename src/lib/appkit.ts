@@ -1,7 +1,7 @@
 import { browser } from '$app/environment'
 import { createAppKit } from '@reown/appkit'
 import { EthersAdapter } from '@reown/appkit-adapter-ethers'
-import { arbitrum, mainnet } from '@reown/appkit/networks'
+import { mainnet, sepolia } from '@reown/appkit/networks'
 
 // Define a type for the AppKit instance to be used throughout the app
 export type AppKit = ReturnType<typeof createAppKit>;
@@ -22,7 +22,7 @@ export function initializeAppKit() {
 			throw new Error('VITE_REOWN_PROJECT_ID is not set in your .env file');
 		}
 
-		const networks = [arbitrum, mainnet];
+		const networks = [sepolia, mainnet];
 
 		// Create adapter
 		const ethersAdapter = new EthersAdapter();
@@ -31,13 +31,16 @@ export function initializeAppKit() {
 		appKit = createAppKit({
 			adapters: [ethersAdapter],
 			networks,
-			defaultNetwork: mainnet,
+			defaultNetwork: sepolia,
 			projectId,
 			metadata: {
 				name: 'Market DApp',
 				description: 'A decentralized market application',
 				url: window.location.origin,
 				icons: [`${window.location.origin}/favicon.png`]
+			},
+			features: {
+				connectMethodsOrder: ['wallet']
 			}
 		});
 
