@@ -7,35 +7,160 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-primary-50: #fff5f2;
-  --color-primary-100: #fff1ee;
-  --color-primary-200: #ffe4de;
-  --color-primary-300: #ffd5cc;
-  --color-primary-400: #ffbcad;
-  --color-primary-500: #fe795d;
-  --color-primary-600: #ef562f;
-  --color-primary-700: #eb4f27;
-  --color-primary-800: #cc4522;
-  --color-primary-900: #a5371b;
-
-  --color-secondary-50: #f0f9ff;
-  --color-secondary-100: #e0f2fe;
-  --color-secondary-200: #bae6fd;
-  --color-secondary-300: #7dd3fc;
-  --color-secondary-400: #38bdf8;
-  --color-secondary-500: #0ea5e9;
-  --color-secondary-600: #0284c7;
-  --color-secondary-700: #0369a1;
-  --color-secondary-800: #075985;
-  --color-secondary-900: #0c4a6e;
+  /* Theme Variables - Light Mode (Default) */
+  --color-background: #ffffff;
+  --color-surface: #f9fafb;
+  --color-card: #f3f4f6;
+  --color-text: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-muted: #9ca3af;
+  --color-border: #e5e7eb;
+  --color-border-secondary: #d1d5db;
+  
+  /* Brand Colors */
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-secondary: #a855f7;
+  --color-secondary-hover: #9333ea;
+  --color-accent: #14b8a6;
+  --color-accent-hover: #0d9488;
+  
+  /* Status Colors */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  
+  /* Chart Colors */
+  --color-chart-1: #3b82f6;
+  --color-chart-2: #a855f7;
+  --color-chart-3: #14b8a6;
+  --color-chart-4: #22c55e;
+  --color-chart-5: #f59e0b;
+  --color-chart-6: #ef4444;
+  --color-chart-7: #8b5cf6;
+  --color-chart-8: #06b6d4;
+  --color-chart-9: #84cc16;
+  --color-chart-10: #f97316;
 }
 
 @source "../node_modules/flowbite-svelte/dist";
 @source "../node_modules/flowbite-svelte-icons/dist";
 
 @layer base {
-  /* disable chrome cancel button */
+  /* Dark Mode Theme Variables */
+  .dark {
+    color-scheme: dark;
+    --color-background: #111827;
+    --color-surface: #1f2937;
+    --color-card: #374151;
+    --color-text: #f9fafb;
+    --color-text-secondary: #d1d5db;
+    --color-text-muted: #9ca3af;
+    --color-border: #374151;
+    --color-border-secondary: #4b5563;
+    
+    /* Brand colors stay the same in dark mode */
+    --color-primary: #3b82f6;
+    --color-primary-hover: #2563eb;
+    --color-secondary: #a855f7;
+    --color-secondary-hover: #9333ea;
+    --color-accent: #14b8a6;
+    --color-accent-hover: #0d9488;
+  }
+
+  /* Base styles using theme variables */
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text);
+  }
+
+  /* Ensure proper text colors for flowbite components */
+  .dark .navbar-brand,
+  .dark .navbar-nav .nav-link,
+  .dark .navbar-text,
+  .dark .navbar-nav .nav-item,
+  .dark .navbar-nav .nav-link:hover,
+  .dark .navbar-nav .nav-link:focus,
+  .dark nav *,
+  .dark nav span,
+  .dark nav a,
+  .dark nav button {
+    color: var(--color-text) !important;
+  }
+
+  /* Light mode flowbite text fixes */
+  .navbar-brand,
+  .navbar-nav .nav-link,
+  .navbar-text,
+  .navbar-nav .nav-item,
+  nav *,
+  nav span,
+  nav a,
+  nav button {
+    color: var(--color-text) !important;
+  }
+
+  /* Remove default button borders in nav */
+  nav button {
+    border: none !important;
+    outline: none !important;
+  }
+  
+  nav button:focus {
+    box-shadow: none !important;
+  }
+
+  /* Chrome search cancel button */
   input[type="search"]::-webkit-search-cancel-button {
     display: none;
   }
+
+  /* Utility classes using theme variables */
+  .theme-bg { background-color: var(--color-background); }
+  .theme-surface { background-color: var(--color-surface); }
+  .theme-card { background-color: var(--color-card); }
+  .theme-text { color: var(--color-text); }
+  .theme-text-secondary { color: var(--color-text-secondary); }
+  .theme-text-muted { color: var(--color-text-muted); }
+  .theme-border { border-color: var(--color-border); }
+  
+  .theme-primary { background-color: var(--color-primary); color: white; }
+  .theme-secondary { background-color: var(--color-secondary); color: white; }
+  .theme-accent { background-color: var(--color-accent); color: white; }
+  
+  .theme-btn-primary { 
+    background-color: var(--color-primary); 
+    color: white; 
+  }
+  .theme-btn-primary:hover { 
+    background-color: var(--color-primary-hover); 
+  }
+  
+  .theme-btn-secondary { 
+    background-color: var(--color-secondary); 
+    color: white; 
+  }
+  .theme-btn-secondary:hover { 
+    background-color: var(--color-secondary-hover); 
+  }
+  
+  .theme-btn-accent { 
+    background-color: var(--color-accent); 
+    color: white; 
+  }
+  .theme-btn-accent:hover { 
+    background-color: var(--color-accent-hover); 
+  }
+
+  /* Chart colors */
+  .chart-1 { color: var(--color-chart-1); }
+  .chart-2 { color: var(--color-chart-2); }
+  .chart-3 { color: var(--color-chart-3); }
+  .chart-4 { color: var(--color-chart-4); }
+  .chart-5 { color: var(--color-chart-5); }
+  .chart-6 { color: var(--color-chart-6); }
+  .chart-7 { color: var(--color-chart-7); }
+  .chart-8 { color: var(--color-chart-8); }
+  .chart-9 { color: var(--color-chart-9); }
+  .chart-10 { color: var(--color-chart-10); }
 }

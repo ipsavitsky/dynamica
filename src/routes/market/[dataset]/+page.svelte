@@ -10,6 +10,7 @@
     import { buyShares, sellShares, redeemPayout, checkAllowance, approveTokens, getTransactionCost } from "$lib/utils";
     import { initializeAppKit } from "$lib/appkit";
     import { browser } from "$app/environment";
+    import { getChartColors, getApexChartTheme, themeClasses } from "$lib/theme";
 
     const contractAddress = "0x6d54f93e64c29A0D8FCF01039d1cbC701553c090";
 
@@ -31,20 +32,21 @@
     let amount = $state(1);
     let decimals = $state(18); // Default to 18, will be updated from contract
     let combinedMode = $state(true); // Toggle between combined and separate chart modes
+    let isDarkMode = $state(false);
 
     let isInvalid = $derived(amount <= 0);
-    
+
     let isBuying = $state(false);
     let isSelling = $state(false);
     let isRedeeming = $state(false);
     let isApproving = $state(false);
-    
+
     let transactionCost = $state<string | null>(null);
     let showConfirmation = $state(false);
     let pendingTransaction = $state<'buy' | 'sell' | null>(null);
-    
+
     let appKit: any = null;
-    
+
     // Initialize AppKit in browser
     if (browser) {
         appKit = initializeAppKit();
@@ -130,6 +132,9 @@
 
             selectedAsset = assetNames[0] || "";
 
+            // Check dark mode
+            isDarkMode = document.documentElement.classList.contains('dark');
+
             // Now fetch contract data
             await getUnitDec();
             await Promise.all([getContractPrice(), getMarginalPrices()]);
@@ -153,19 +158,19 @@
     });
 
     let options: ApexOptions = $derived({
-        colors: ["#1A56DB", "#FDBA8C"],
+        colors: getChartColors(2, isDarkMode),
         series: [
             {
-                name: "Current Allocation",
-                color: "#1A56DB",
+                name: "Current percentage",
+                color: getChartColors(2, isDarkMode)[0],
                 data: assetNames.map((name: string, i: number) => ({
                     x: name,
                     y: currentAllocationData[i],
                 })),
             },
             {
-                name: "Proposed Allocation",
-                color: "#FDBA8C",
+                name: "Margin price",
+                color: getChartColors(2, isDarkMode)[1],
                 data: assetNames.map((name: string, i: number) => ({
                     x: name,
                     y: marginalPrices[i],
@@ -179,6 +184,7 @@
             toolbar: {
                 show: false,
             },
+            foreColor: isDarkMode ? '#f9fafb' : '#111827',
         },
         plotOptions: {
             bar: {
@@ -194,6 +200,7 @@
             style: {
                 fontFamily: "Inter, sans-serif",
             },
+            theme: isDarkMode ? 'dark' : 'light',
         },
         states: {
             hover: {
@@ -228,8 +235,7 @@
                 show: true,
                 style: {
                     fontFamily: "Inter, sans-serif",
-                    cssClass:
-                        "text-xs font-normal fill-gray-500 dark:fill-gray-400",
+                    colors: isDarkMode ? '#f9fafb' : '#111827',
                 },
             },
             axisBorder: {
@@ -242,8 +248,11 @@
         yaxis: {
             show: true,
             labels: {
-                formatter: function (value) {
+                formatter: function (value: number) {
                     return value.toFixed(3);
+                },
+                style: {
+                    colors: isDarkMode ? '#f9fafb' : '#111827',
                 },
             },
         },
@@ -252,11 +261,8 @@
         },
     });
 
-    // Define consistent colors for assets
-    const assetColors = [
-        "#1A56DB", "#FDBA8C", "#31C48D", "#F98080", "#9061F9", 
-        "#F59E0B", "#EF4444", "#10B981", "#8B5CF6", "#06B6D4"
-    ];
+    // Define consistent colors for assets using theme colors
+    const assetColors = $derived(getChartColors(Math.max(10, assetNames.length), isDarkMode));
 
     let lineChartOptions: ApexOptions = $derived({
         chart: {
@@ -269,6 +275,7 @@
             toolbar: {
                 show: false,
             },
+            foreColor: isDarkMode ? '#f9fafb' : '#111827',
         },
         colors: assetColors,
         tooltip: {
@@ -276,6 +283,7 @@
             x: {
                 show: false,
             },
+            theme: isDarkMode ? 'dark' : 'light',
         },
         dataLabels: {
             enabled: false,
@@ -292,19 +300,25 @@
                 right: 2,
                 top: -26,
             },
+            borderColor: isDarkMode ? '#374151' : '#e5e7eb',
         },
-        series: [],
+        series: assetNames.map((assetName: string, colIndex: number) => ({
+            name: assetName,
+            data: dataRows.map((row: number[]) => row[colIndex] || null),
+        })),
         legend: {
             show: true,
+            labels: {
+                colors: isDarkMode ? '#f9fafb' : '#111827',
+            },
         },
         xaxis: {
-            categories: [],
+            categories: dataRows.map((_: number[], index: number) => `Event ${index + 1}`),
             labels: {
                 show: false,
                 style: {
                     fontFamily: "Inter, sans-serif",
-                    cssClass:
-                        "text-xs font-normal fill-gray-500 dark:fill-gray-400",
+                    colors: isDarkMode ? '#f9fafb' : '#111827',
                 },
             },
             axisBorder: {
@@ -317,8 +331,11 @@
         yaxis: {
             show: true,
             labels: {
-                formatter: function (value) {
+                formatter: function (value: number) {
                     return value.toFixed(3);
+                },
+                style: {
+                    colors: isDarkMode ? '#f9fafb' : '#111827',
                 },
             },
         },
@@ -331,7 +348,7 @@
             const minValue = Math.min(...validData);
             const maxValue = Math.max(...validData);
             const padding = (maxValue - minValue) * 0.1;
-            
+
             return {
                 chart: {
                     height: "200px",
@@ -343,6 +360,7 @@
                     toolbar: {
                         show: false,
                     },
+                    foreColor: isDarkMode ? '#f9fafb' : '#111827',
                 },
                 colors: [assetColors[index % assetColors.length]],
                 tooltip: {
@@ -350,6 +368,7 @@
                     x: {
                         show: false,
                     },
+                    theme: isDarkMode ? 'dark' : 'light',
                 },
                 dataLabels: {
                     enabled: false,
@@ -366,6 +385,7 @@
                         right: 2,
                         top: -26,
                     },
+                    borderColor: isDarkMode ? '#374151' : '#e5e7eb',
                 },
                 series: [
                     {
@@ -383,6 +403,7 @@
                         fontFamily: "Inter, sans-serif",
                         fontWeight: "600",
                         fontSize: "16px",
+                        color: isDarkMode ? '#f9fafb' : '#111827',
                     },
                 },
                 xaxis: {
@@ -391,8 +412,7 @@
                         show: false,
                         style: {
                             fontFamily: "Inter, sans-serif",
-                            cssClass:
-                                "text-xs font-normal fill-gray-500 dark:fill-gray-400",
+                            colors: isDarkMode ? '#f9fafb' : '#111827',
                         },
                     },
                     axisBorder: {
@@ -407,37 +427,35 @@
                     min: validData.length > 0 ? minValue - padding : undefined,
                     max: validData.length > 0 ? maxValue + padding : undefined,
                     labels: {
-                        formatter: function (value) {
+                        formatter: function (value: number) {
                             return value.toFixed(3);
+                        },
+                        style: {
+                            colors: isDarkMode ? '#f9fafb' : '#111827',
                         },
                     },
                 },
             };
         })
     );
+    // Setup theme observer
     $effect(() => {
-        try {
-            // Transpose the data for ApexCharts series format
-            const series = assetNames.map(
-                (assetName: string, colIndex: number) => {
-                    return {
-                        name: assetName,
-                        data: dataRows.map(
-                            (row: number[]) => row[colIndex] || null,
-                        ),
-                    };
-                },
-            );
+        const darkModeObserver = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                    isDarkMode = document.documentElement.classList.contains('dark');
+                }
+            });
+        });
 
-            lineChartOptions.series = series;
-            if (lineChartOptions.xaxis) {
-                lineChartOptions.xaxis.categories = dataRows.map(
-                    (_: number[], index: number) => `Event ${index + 1}`,
-                );
-            }
-        } catch (error) {
-            console.error("Failed to process asset data:", error);
-        }
+        darkModeObserver.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class']
+        });
+
+        return () => {
+            darkModeObserver.disconnect();
+        };
     });
 
     async function getProvider() {
@@ -451,12 +469,12 @@
                 return null;
             }
         }
-        
+
         console.log('AppKit available:', !!appKit);
         console.log('AppKit methods:', Object.keys(appKit));
-        
+
         let provider;
-        
+
         // Try window.ethereum first as it usually works best for contract interactions
         if (typeof window !== 'undefined' && window.ethereum) {
             provider = window.ethereum;
@@ -474,13 +492,13 @@
             provider = appKit.provider;
             console.log('Got provider via .provider property');
         }
-        
+
         if (!provider) {
             console.error('No provider available');
             console.log('Available appKit properties:', Object.keys(appKit));
             return null;
         }
-        
+
         console.log('Provider found:', provider);
         return provider;
     }
@@ -494,7 +512,7 @@
 
             const ethersProvider = new ethers.BrowserProvider(provider);
             const assetIndex = assetNames.indexOf(selectedAsset);
-            
+
             if (assetIndex === -1) {
                 console.error('Selected asset not found');
                 return;
@@ -543,13 +561,13 @@
             if (currentAllowance < requiredAmount) {
                 console.log('Insufficient allowance, requesting approval...');
                 isApproving = true;
-                
+
                 // Approve a bit more than needed to avoid future approvals
                 const approveAmount = (requiredAmount * 2).toString();
                 const approvalSuccess = await approveTokens(approveAmount, signer);
-                
+
                 isApproving = false;
-                
+
                 if (!approvalSuccess) {
                     console.error('Token approval failed');
                     return;
@@ -599,9 +617,9 @@
 
     async function handleRedeem() {
         if (!appKit || isRedeeming) return;
-        
+
         isRedeeming = true;
-        
+
         try {
             // Check if wallet is connected
             const caipAddress = appKit.getCaipAddress();
@@ -610,26 +628,26 @@
                 await appKit.open();
                 return;
             }
-            
+
             const provider = await getProvider();
             if (!provider) return;
-            
+
             // Ensure provider is connected
             console.log('Provider object:', provider);
             console.log('Provider methods:', Object.getOwnPropertyNames(provider));
             console.log('Provider prototype methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(provider)));
-            
+
             // Skip provider connection and try to use it directly
             console.log('Provider session:', provider.session);
             console.log('Provider connected:', provider.connected);
             console.log('Trying to use provider directly without calling connect...');
-            
+
             const ethersProvider = new ethers.BrowserProvider(provider);
             const signer = await ethersProvider.getSigner();
-            
+
             console.log('Redeeming payout...');
             const success = await redeemPayout(signer);
-            
+
             if (success) {
                 console.log('Redeem successful');
             }
@@ -641,64 +659,56 @@
     }
 </script>
 
-<div class="grid grid-cols-3 items-start gap-8 p-8">
+<div class="grid grid-cols-3 items-start gap-8 p-8 theme-surface min-h-screen">
     <div class="col-span-2">
         {#if loading}
-            <p>Loading chart...</p>
+            <p class="theme-text">Loading chart...</p>
         {:else if error}
             <Alert color="red">{error}</Alert>
         {:else}
             <Chart {options} />
         {/if}
     </div>
-    <Card class="h-full p-6">
+    <Card class="h-full p-6 theme-card theme-border shadow-lg hover:opacity-90 transition-opacity">
         <form class="flex h-full flex-col justify-center">
             <div class="mb-4 flex items-end justify-start gap-4">
-                <p class="text-4xl font-semibold text-gray-900 dark:text-white">
+                <p class="text-4xl font-semibold theme-text">
                     ${price}
                 </p>
                 <div>
-                    <p
-                        class="text-s font-normal text-gray-500 dark:text-gray-400"
-                    >
+                    <p class="text-s font-normal theme-text-secondary">
                         ${pricePerShare}
                     </p>
-                    <p
-                        class="text-s font-normal text-gray-500 dark:text-gray-400"
-                    >
+                    <p class="text-s font-normal theme-text-secondary">
                         per share
                     </p>
                 </div>
             </div>
-            <Label class="mb-4 space-y-2">
+            <Label class="mb-4 space-y-2 theme-text">
                 <span>Asset</span>
-                <Select bind:value={selectedAsset} items={selectItems} />
+                <Select bind:value={selectedAsset} items={selectItems} class="theme-card theme-border theme-text" />
             </Label>
-            <Label class="mb-4 space-y-2">
+            <Label class="mb-4 space-y-2 theme-text">
                 <span>Shares</span>
                 <div class="relative">
                     <Input
                         bind:value={amount}
                         type="number"
                         name="amount"
-                        class="w-full pe-24"
+                        class="w-full pe-24 theme-card theme-border theme-text"
                         required
                     />
-                    <div
-                        class="absolute inset-y-0 end-0 flex items-center pe-2"
-                    >
+                    <div class="absolute inset-y-0 end-0 flex items-center pe-2">
                         <Button
                             onclick={decrement}
                             type="button"
                             color="light"
-                            class="!p-1.5 text-xs !font-normal">-1</Button
-                        >
+                            class="!p-1.5 text-xs !font-normal theme-card theme-text">-1</Button>
                         <Button
                             onclick={increment}
                             type="button"
                             color="light"
-                            class="!p-1.5 ms-1 text-xs !font-normal">+1</Button
-                        >
+                            class="!p-1.5 ms-1 text-xs !font-normal theme-card theme-text">+1</Button>
                     </div>
                 </div>
                 {#if isInvalid}
@@ -721,23 +731,23 @@
                     color="red">{isSelling ? 'Selling...' : 'Sell'}</Button
                 >
             </div>
-            <Button 
-                onclick={handleRedeem} 
-                size="xl" 
-                class="w-full" 
+            <Button
+                onclick={handleRedeem}
+                size="xl"
+                class="w-full"
                 color="orange"
                 disabled={isRedeeming}
                 >{isRedeeming ? 'Redeeming...' : 'Redeem'}</Button
             >
         </form>
     </Card>
-    <div class="col-span-3 rounded-lg bg-white p-4 dark:bg-gray-800 md:p-6">
+    <div class="col-span-3 rounded-lg theme-card p-4 md:p-6 theme-border shadow-lg hover:opacity-90 transition-opacity">
         <div class="mb-4 flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+            <h3 class="text-lg font-semibold theme-text">
                 Historical Data
             </h3>
             <Button
-                color="alternative"
+                class="theme-btn-primary"
                 size="sm"
                 onclick={() => combinedMode = !combinedMode}
             >
@@ -745,7 +755,7 @@
             </Button>
         </div>
         {#if loading}
-            <p>Loading chart...</p>
+            <p class="theme-text">Loading chart...</p>
         {:else if error}
             <Alert color="red">{error}</Alert>
         {:else if combinedMode}
@@ -753,7 +763,7 @@
         {:else}
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {#each separateChartOptions as chartOption}
-                    <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                    <div class="rounded-lg theme-border p-4 theme-card shadow-md hover:opacity-90 transition-opacity">
                         <Chart options={chartOption} />
                     </div>
                 {/each}
@@ -774,7 +784,7 @@
                     Cost: {transactionCost} tokens
                 </p>
             </div>
-            
+
             <div class="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
                 <p class="text-sm text-yellow-800 dark:text-yellow-200">
                     This transaction will require token approval if you haven't approved enough tokens yet.
@@ -783,10 +793,10 @@
             </div>
 
             <div class="flex space-x-4">
-                <Button 
-                    onclick={confirmTransaction} 
+                <Button
+                    onclick={confirmTransaction}
                     disabled={isBuying || isSelling || isApproving}
-                    color="green" 
+                    color="green"
                     class="flex-1"
                 >
                     {#if isApproving}
@@ -799,9 +809,9 @@
                         Confirm
                     {/if}
                 </Button>
-                <Button 
-                    onclick={() => showConfirmation = false} 
-                    color="alternative" 
+                <Button
+                    onclick={() => showConfirmation = false}
+                    color="alternative"
                     class="flex-1"
                     disabled={isBuying || isSelling || isApproving}
                 >

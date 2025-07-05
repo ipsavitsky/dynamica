@@ -5,6 +5,7 @@
 	import { getTokenBalance, mintTokens } from '$lib/utils';
 	import { browser } from '$app/environment';
 	import { ethers } from 'ethers';
+	import { onMount } from 'svelte';
 
 	let { children } = $props();
 
@@ -13,6 +14,30 @@
 	let address = $state<string | null>(null);
 	let tokenBalance = $state<{ balance: string; symbol: string } | null>(null);
 	let isMinting = $state(false);
+	let darkMode = $state(false);
+
+	onMount(() => {
+		// Check for saved theme preference or default to light mode
+		const savedTheme = localStorage.getItem('theme');
+		if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+			darkMode = true;
+			document.documentElement.classList.add('dark');
+		} else {
+			darkMode = false;
+			document.documentElement.classList.remove('dark');
+		}
+	});
+
+	function toggleTheme() {
+		darkMode = !darkMode;
+		if (darkMode) {
+			document.documentElement.classList.add('dark');
+			localStorage.setItem('theme', 'dark');
+		} else {
+			document.documentElement.classList.remove('dark');
+			localStorage.setItem('theme', 'light');
+		}
+	}
 
 	$effect(() => {
 		if (appKit) {
@@ -34,10 +59,10 @@
 			console.log('AppKit not available');
 			return;
 		}
-		
+
 		try {
 			console.log('Fetching token balance for:', userAddress);
-			
+
 			// Try different methods to get provider
 			let provider;
 			if (typeof appKit.getProvider === 'function') {
@@ -47,7 +72,7 @@
 			} else {
 				console.log('Available appKit methods:', Object.keys(appKit));
 			}
-			
+
 			if (provider) {
 				console.log('Provider found, creating ethers provider');
 				const ethersProvider = new ethers.BrowserProvider(provider);
@@ -73,23 +98,23 @@
 
 	async function handleMint() {
 		if (!address || !appKit || isMinting) return;
-		
+
 		isMinting = true;
-		
+
 		try {
 			console.log('Starting mint process...');
 			console.log('AppKit methods:', Object.keys(appKit));
-			
+
 			// Try to get the provider using AppKit's connection
 			let provider;
-			
+
 			// First try the caip connection
 			if (appKit.getCaipAddress) {
 				console.log('Using CAIP connection');
 				const caipAddress = appKit.getCaipAddress();
 				console.log('CAIP address:', caipAddress);
 			}
-			
+
 			// Try different methods to get provider
 			if (appKit.getProvider) {
 				provider = appKit.getProvider();
@@ -101,27 +126,27 @@
 				provider = appKit.provider;
 				console.log('Got provider via .provider property');
 			}
-			
+
 			// Fallback to window.ethereum
 			if (!provider && typeof window !== 'undefined' && window.ethereum) {
 				provider = window.ethereum;
 				console.log('Using window.ethereum as fallback');
 			}
-			
+
 			if (!provider) {
 				console.error('No provider available for minting');
 				console.log('Available appKit properties:', Object.keys(appKit));
 				return;
 			}
-			
+
 			console.log('Provider found:', provider);
-			
+
 			const ethersProvider = new ethers.BrowserProvider(provider);
 			const signer = await ethersProvider.getSigner();
-			
+
 			console.log('Signer created, minting 10 tokens...');
 			const success = await mintTokens(address, '10', signer);
-			
+
 			if (success) {
 				console.log('Mint successful, refreshing balance...');
 				// Refresh balance after successful mint
@@ -142,16 +167,33 @@
 	}
 </script>
 
-<div class="bg-gray-50 dark:bg-gray-900 min-h-screen">
-	<header class="w-full bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+<div class="theme-surface min-h-screen transition-colors duration-300">
+	<header class="w-full theme-card border-b theme-border shadow-sm">
 		<Navbar class="max-w-screen-xl mx-auto px-4">
 			<NavBrand href="/">
-				<span class="self-center whitespace-nowrap text-xl font-semibold dark:text-white">
-					Placeholder
+				<span class="self-center whitespace-nowrap text-xl font-semibold theme-text">
+				Dynamica
 				</span>
 			</NavBrand>
 			<NavHamburger />
-			<div class="flex items-center md:order-2 space-x-3 md:space-x-0 rtl:space-x-reverse ml-3">
+			<div class="flex items-center md:order-2 space-x-3 rtl:space-x-reverse ml-3">
+				<!-- Theme Toggle Button -->
+				<Button
+					size="sm"
+					class="theme-card hover:opacity-80 theme-text p-2"
+					onclick={toggleTheme}
+				>
+					{#if darkMode}
+						<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+							<path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"></path>
+						</svg>
+					{:else}
+						<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+							<path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+						</svg>
+					{/if}
+				</Button>
+
 				{#if browser}
 					{#if address}
 						<div class="flex items-center space-x-2">
@@ -169,23 +211,31 @@
 									{tokenBalance.balance} {tokenBalance.symbol}
 								</span>
 							{/if}
-							<Button color="light" onclick={() => appKit?.open({ view: 'Account' })}>{formatAddress(address)}</Button>
+							<Button
+								class="theme-card hover:opacity-80 theme-text"
+								onclick={() => appKit?.open({ view: 'Account' })}
+							>
+								{formatAddress(address)}
+							</Button>
 						</div>
 					{:else}
-						<Button onclick={() => appKit?.open()}>Connect Wallet</Button>
+						<Button
+							class="theme-btn-primary"
+							onclick={() => appKit?.open()}
+						>
+							Connect Wallet
+						</Button>
 					{/if}
 				{/if}
 			</div>
 			<NavUl>
-				<NavLi href="/">Home</NavLi>
-				<NavLi href="/about">About</NavLi>
-				<NavLi href="/services">Services</NavLi>
-				<NavLi href="/contact">Contact</NavLi>
+				<NavLi href="/" class="theme-text hover:opacity-80">Home</NavLi>
+				<NavLi href="/about" class="theme-text hover:opacity-80">About</NavLi>
 			</NavUl>
 		</Navbar>
 	</header>
 
-	<main class="p-8">
+	<main class="transition-colors duration-300">
 		{@render children()}
 	</main>
 </div>

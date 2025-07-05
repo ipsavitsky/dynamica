@@ -22,7 +22,7 @@ export function initializeAppKit() {
 			throw new Error('VITE_REOWN_PROJECT_ID is not set in your .env file');
 		}
 
-		const networks = [sepolia, mainnet];
+		const networks = [sepolia, mainnet] as [typeof sepolia, typeof mainnet];
 
 		// Create adapter
 		const ethersAdapter = new EthersAdapter();
@@ -30,7 +30,7 @@ export function initializeAppKit() {
 		// Initialize AppKit
 		appKit = createAppKit({
 			adapters: [ethersAdapter],
-			networks,
+			networks: [...networks],
 			defaultNetwork: sepolia,
 			projectId,
 			metadata: {
