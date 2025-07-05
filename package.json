@@ -25,6 +25,10 @@
 	},
 	"dependencies": {
 		"@flowbite-svelte-plugins/chart": "^0.2.4",
+		"@reown/appkit": "^1.7.12",
+		"@reown/appkit-adapter-ethers": "^1.7.12",
+		"@reown/appkit-adapter-ethers5": "^1.7.12",
+		"@reown/appkit-adapter-wagmi": "^1.7.12",
 		"ethers": "^6.15.0",
 		"flowbite": "^3.1.2",
 		"flowbite-svelte": "^1.8.3",
