@@ -54,6 +54,39 @@
 		}
 	});
 
+	async function getProvider() {
+		if (!appKit) {
+			console.log('AppKit not available');
+			return null;
+		}
+
+		console.log('AppKit available:', !!appKit);
+		console.log('AppKit methods:', Object.keys(appKit));
+
+		let provider;
+
+		// Try window.ethereum first as it usually works best for contract interactions
+		if (typeof window !== 'undefined' && window.ethereum) {
+			provider = window.ethereum;
+			console.log('Using window.ethereum as primary provider');
+		} else if (appKit.getProvider) {
+			provider = appKit.getProvider('eip155');
+			console.log('getProvider() returned:', provider);
+		} else if (appKit.getWalletProvider) {
+			provider = appKit.getWalletProvider();
+			console.log('Got provider via getWalletProvider');
+		}
+
+		if (!provider) {
+			console.error('No provider available');
+			console.log('Available appKit properties:', Object.keys(appKit));
+			return null;
+		}
+
+		console.log('Provider found:', provider);
+		return provider;
+	}
+
 	async function fetchTokenBalance(userAddress: string) {
 		if (!appKit) {
 			console.log('AppKit not available');
@@ -63,36 +96,26 @@
 		try {
 			console.log('Fetching token balance for:', userAddress);
 
-			// Try different methods to get provider
-			let provider;
-			if (typeof appKit.getProvider === 'function') {
-				provider = appKit.getProvider();
-			} else if (typeof appKit.getWalletProvider === 'function') {
-				provider = appKit.getWalletProvider();
-			} else {
-				console.log('Available appKit methods:', Object.keys(appKit));
+			// Add a small delay to ensure wallet is properly connected
+			await new Promise(resolve => setTimeout(resolve, 500));
+
+			const provider = await getProvider();
+			if (!provider) {
+				console.log('No provider available');
+				return;
 			}
 
-			if (provider) {
-				console.log('Provider found, creating ethers provider');
-				const ethersProvider = new ethers.BrowserProvider(provider);
-				const balance = await getTokenBalance(userAddress, ethersProvider);
-				console.log('Token balance fetched:', balance);
-				tokenBalance = balance;
-			} else {
-				console.log('No provider available');
-				// Fallback: try to create provider with window.ethereum
-				if (typeof window !== 'undefined' && window.ethereum) {
-					console.log('Using window.ethereum as fallback');
-					const ethersProvider = new ethers.BrowserProvider(window.ethereum);
-					const balance = await getTokenBalance(userAddress, ethersProvider);
-					console.log('Token balance fetched with fallback:', balance);
-					tokenBalance = balance;
-				}
-			}
+			console.log('Fetching token balance with dedicated provider');
+			const balance = await getTokenBalance(userAddress);
+			console.log('Token balance fetched:', balance);
+			tokenBalance = balance;
 		} catch (error) {
 			console.error('Failed to fetch token balance:', error);
-			tokenBalance = null;
+			// Set a fallback value instead of null to show something in the UI
+			tokenBalance = {
+				balance: '0.0',
+				symbol: 'MOCK'
+			};
 		}
 	}
 
@@ -103,44 +126,14 @@
 
 		try {
 			console.log('Starting mint process...');
-			console.log('AppKit methods:', Object.keys(appKit));
 
-			// Try to get the provider using AppKit's connection
-			let provider;
-
-			// First try the caip connection
-			if (appKit.getCaipAddress) {
-				console.log('Using CAIP connection');
-				const caipAddress = appKit.getCaipAddress();
-				console.log('CAIP address:', caipAddress);
-			}
-
-			// Try different methods to get provider
-			if (appKit.getProvider) {
-				provider = appKit.getProvider();
-				console.log('Got provider via getProvider');
-			} else if (appKit.getWalletProvider) {
-				provider = appKit.getWalletProvider();
-				console.log('Got provider via getWalletProvider');
-			} else if (appKit.provider) {
-				provider = appKit.provider;
-				console.log('Got provider via .provider property');
-			}
-
-			// Fallback to window.ethereum
-			if (!provider && typeof window !== 'undefined' && window.ethereum) {
-				provider = window.ethereum;
-				console.log('Using window.ethereum as fallback');
-			}
-
+			const provider = await getProvider();
 			if (!provider) {
 				console.error('No provider available for minting');
-				console.log('Available appKit properties:', Object.keys(appKit));
 				return;
 			}
 
-			console.log('Provider found:', provider);
-
+			console.log('Provider found, creating signer...');
 			const ethersProvider = new ethers.BrowserProvider(provider);
 			const signer = await ethersProvider.getSigner();
 

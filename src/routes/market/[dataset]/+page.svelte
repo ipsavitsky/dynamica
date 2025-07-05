@@ -83,7 +83,8 @@
             const provider = new ethers.JsonRpcProvider("https://sepolia.infura.io/v3/b9794ad1ddf84dfb8c34d6bb5dca2001");
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
 
-            const deltaOutcomeAmounts = new Array(assetNames.length).fill(0);
+            const outcomeSlotCount = await contract.outcomeSlotCount();
+            const deltaOutcomeAmounts = new Array(Number(outcomeSlotCount)).fill(0);
             const assetIndex = assetNames.indexOf(selectedAsset);
             if (assetIndex !== -1) {
                 deltaOutcomeAmounts[assetIndex] = ethers.parseUnits(amount.toString(), decimals);
@@ -548,7 +549,7 @@
             const signer = await ethersProvider.getSigner();
 
             // Check allowance first
-            const allowanceInfo = await checkAllowance(address, ethersProvider);
+            const allowanceInfo = await checkAllowance(address);
             if (!allowanceInfo) return;
 
             const requiredAmount = parseFloat(transactionCost);
@@ -564,7 +565,7 @@
 
                 // Approve a bit more than needed to avoid future approvals
                 const approveAmount = (requiredAmount * 2).toString();
-                const approvalSuccess = await approveTokens(approveAmount, signer);
+                const approvalSuccess = await approveTokens(address, approveAmount, signer);
 
                 isApproving = false;
 
