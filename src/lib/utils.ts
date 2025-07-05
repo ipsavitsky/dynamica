@@ -3,11 +3,12 @@ import { ethers } from 'ethers';
 // 1e18 в BigNumber, adapted for ethers v6 (native BigInt)
 export const UNIT_DEC = 1000000000000000000n;
 
-// ERC20 ABI for balance and decimals
+// ERC20 ABI for balance, decimals, and mint
 const ERC20_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
   "function decimals() view returns (uint8)",
-  "function symbol() view returns (string)"
+  "function symbol() view returns (string)",
+  "function mint(address receiver, uint256 amount) external"
 ];
 
 // Mock token contract address
@@ -88,5 +89,31 @@ export async function getTokenBalance(address: string, provider: ethers.Provider
   } catch (error) {
     console.error('Error fetching token balance:', error);
     return null;
+  }
+}
+
+export async function mintTokens(address: string, amount: string, signer: ethers.Signer): Promise<boolean> {
+  try {
+    console.log('Minting tokens to:', address);
+    console.log('Amount:', amount);
+    
+    const contract = new ethers.Contract(MOCK_TOKEN_ADDRESS, ERC20_ABI, signer);
+    
+    // Get decimals to properly format the amount
+    const decimals = await contract.decimals();
+    const mintAmount = ethers.parseUnits(amount, decimals);
+    
+    console.log('Mint amount (with decimals):', mintAmount.toString());
+    
+    const tx = await contract.mint(address, mintAmount);
+    console.log('Mint transaction sent:', tx.hash);
+    
+    await tx.wait();
+    console.log('Mint transaction confirmed');
+    
+    return true;
+  } catch (error) {
+    console.error('Error minting tokens:', error);
+    return false;
   }
 }

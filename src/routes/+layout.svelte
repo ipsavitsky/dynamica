@@ -2,7 +2,7 @@
 	import '../app.css';
 	import { Navbar, NavBrand, NavUl, NavLi, NavHamburger, Button } from 'flowbite-svelte';
 	import { initializeAppKit } from '$lib/appkit';
-	import { getTokenBalance } from '$lib/utils';
+	import { getTokenBalance, mintTokens } from '$lib/utils';
 	import { browser } from '$app/environment';
 	import { ethers } from 'ethers';
 
@@ -12,6 +12,7 @@
 
 	let address = $state<string | null>(null);
 	let tokenBalance = $state<{ balance: string; symbol: string } | null>(null);
+	let isMinting = $state(false);
 
 	$effect(() => {
 		if (appKit) {
@@ -70,6 +71,71 @@
 		}
 	}
 
+	async function handleMint() {
+		if (!address || !appKit || isMinting) return;
+		
+		isMinting = true;
+		
+		try {
+			console.log('Starting mint process...');
+			console.log('AppKit methods:', Object.keys(appKit));
+			
+			// Try to get the provider using AppKit's connection
+			let provider;
+			
+			// First try the caip connection
+			if (appKit.getCaipAddress) {
+				console.log('Using CAIP connection');
+				const caipAddress = appKit.getCaipAddress();
+				console.log('CAIP address:', caipAddress);
+			}
+			
+			// Try different methods to get provider
+			if (appKit.getProvider) {
+				provider = appKit.getProvider();
+				console.log('Got provider via getProvider');
+			} else if (appKit.getWalletProvider) {
+				provider = appKit.getWalletProvider();
+				console.log('Got provider via getWalletProvider');
+			} else if (appKit.provider) {
+				provider = appKit.provider;
+				console.log('Got provider via .provider property');
+			}
+			
+			// Fallback to window.ethereum
+			if (!provider && typeof window !== 'undefined' && window.ethereum) {
+				provider = window.ethereum;
+				console.log('Using window.ethereum as fallback');
+			}
+			
+			if (!provider) {
+				console.error('No provider available for minting');
+				console.log('Available appKit properties:', Object.keys(appKit));
+				return;
+			}
+			
+			console.log('Provider found:', provider);
+			
+			const ethersProvider = new ethers.BrowserProvider(provider);
+			const signer = await ethersProvider.getSigner();
+			
+			console.log('Signer created, minting 10 tokens...');
+			const success = await mintTokens(address, '10', signer);
+			
+			if (success) {
+				console.log('Mint successful, refreshing balance...');
+				// Refresh balance after successful mint
+				await fetchTokenBalance(address);
+			} else {
+				console.error('Mint failed');
+			}
+		} catch (error) {
+			console.error('Error during mint:', error);
+		} finally {
+			isMinting = false;
+		}
+	}
+
 	function formatAddress(addr: string) {
 		return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 	}
@@ -88,6 +154,15 @@
 				{#if browser}
 					{#if address}
 						<div class="flex items-center space-x-2">
+							<Button
+								size="sm"
+								color="green"
+								onclick={handleMint}
+								disabled={isMinting}
+								class="px-2 py-1 text-xs"
+							>
+								{isMinting ? '...' : '+10'}
+							</Button>
 							{#if tokenBalance}
 								<span class="text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md">
 									{tokenBalance.balance} {tokenBalance.symbol}
