@@ -27,6 +27,7 @@
 
     let amount = $state(1);
     let decimals = $state(18); // Default to 18, will be updated from contract
+    let combinedMode = $state(true); // Toggle between combined and separate chart modes
 
     let isInvalid = $derived(amount <= 0);
 
@@ -121,6 +122,13 @@
         }
     });
 
+    const formatYAxisLabel = (value: any) => {
+        if (typeof value === "number") {
+            return value.toFixed(2);
+        }
+        return value;
+    };
+
     $effect(() => {
         getContractPrice();
     });
@@ -214,11 +222,22 @@
         },
         yaxis: {
             show: true,
+            labels: {
+                formatter: function (value) {
+                    return value.toFixed(3);
+                },
+            },
         },
         fill: {
             opacity: 1,
         },
     });
+
+    // Define consistent colors for assets
+    const assetColors = [
+        "#1A56DB", "#FDBA8C", "#31C48D", "#F98080", "#9061F9", 
+        "#F59E0B", "#EF4444", "#10B981", "#8B5CF6", "#06B6D4"
+    ];
 
     let lineChartOptions: ApexOptions = $derived({
         chart: {
@@ -232,6 +251,7 @@
                 show: false,
             },
         },
+        colors: assetColors,
         tooltip: {
             enabled: true,
             x: {
@@ -276,9 +296,106 @@
             },
         },
         yaxis: {
-            show: false,
+            show: true,
+            labels: {
+                formatter: function (value) {
+                    return value.toFixed(3);
+                },
+            },
         },
     });
+
+    let separateChartOptions: ApexOptions[] = $derived(
+        assetNames.map((assetName, index) => {
+            const assetData = dataRows.map((row: number[]) => row[index] || null);
+            const validData = assetData.filter((val: number | null) => val !== null) as number[];
+            const minValue = Math.min(...validData);
+            const maxValue = Math.max(...validData);
+            const padding = (maxValue - minValue) * 0.1;
+            
+            return {
+                chart: {
+                    height: "200px",
+                    type: "line",
+                    fontFamily: "Inter, sans-serif",
+                    dropShadow: {
+                        enabled: false,
+                    },
+                    toolbar: {
+                        show: false,
+                    },
+                },
+                colors: [assetColors[index % assetColors.length]],
+                tooltip: {
+                    enabled: true,
+                    x: {
+                        show: false,
+                    },
+                },
+                dataLabels: {
+                    enabled: false,
+                },
+                stroke: {
+                    width: 4,
+                    curve: "smooth",
+                },
+                grid: {
+                    show: true,
+                    strokeDashArray: 4,
+                    padding: {
+                        left: 2,
+                        right: 2,
+                        top: -26,
+                    },
+                },
+                series: [
+                    {
+                        name: assetName,
+                        data: assetData,
+                    },
+                ],
+                legend: {
+                    show: false,
+                },
+                title: {
+                    text: assetName,
+                    align: "left",
+                    style: {
+                        fontFamily: "Inter, sans-serif",
+                        fontWeight: "600",
+                        fontSize: "16px",
+                    },
+                },
+                xaxis: {
+                    categories: dataRows.map((_: number[], index: number) => `Event ${index + 1}`),
+                    labels: {
+                        show: false,
+                        style: {
+                            fontFamily: "Inter, sans-serif",
+                            cssClass:
+                                "text-xs font-normal fill-gray-500 dark:fill-gray-400",
+                        },
+                    },
+                    axisBorder: {
+                        show: false,
+                    },
+                    axisTicks: {
+                        show: false,
+                    },
+                },
+                yaxis: {
+                    show: true,
+                    min: validData.length > 0 ? minValue - padding : undefined,
+                    max: validData.length > 0 ? maxValue + padding : undefined,
+                    labels: {
+                        formatter: function (value) {
+                            return value.toFixed(3);
+                        },
+                    },
+                },
+            };
+        })
+    );
     $effect(() => {
         try {
             // Transpose the data for ApexCharts series format
@@ -391,12 +508,32 @@
         </form>
     </Card>
     <div class="col-span-3 rounded-lg bg-white p-4 dark:bg-gray-800 md:p-6">
+        <div class="mb-4 flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                Historical Data
+            </h3>
+            <Button
+                color="alternative"
+                size="sm"
+                onclick={() => combinedMode = !combinedMode}
+            >
+                {combinedMode ? "Separate Charts" : "Combined Chart"}
+            </Button>
+        </div>
         {#if loading}
             <p>Loading chart...</p>
         {:else if error}
             <Alert color="red">{error}</Alert>
-        {:else}
+        {:else if combinedMode}
             <Chart options={lineChartOptions} />
+        {:else}
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {#each separateChartOptions as chartOption}
+                    <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                        <Chart options={chartOption} />
+                    </div>
+                {/each}
+            </div>
         {/if}
     </div>
 </div>
