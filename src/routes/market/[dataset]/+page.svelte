@@ -1,11 +1,15 @@
 <script lang="ts">
+    import { onMount } from "svelte";
     import type { ApexOptions } from "apexcharts";
     import { Chart } from "@flowbite-svelte-plugins/chart";
     import { Card, Button, Label, Input, Alert, Select } from "flowbite-svelte";
     import { ethers } from "ethers";
     import { page } from "$app/stores";
-    import { getDeltaJS, UNIT_DEC } from "$lib/utils";
+    import { UNIT_DEC } from "$lib/utils";
     import * as fixtures from "$lib/fixtures";
+
+    const contractAddress = "0x6d54f93e64c29A0D8FCF01039d1cbC701553c090";
+    const contractABI = [{"inputs":[{"internalType":"contract IERC20","name":"_collateralToken","type":"address"},{"internalType":"uint64","name":"_fee","type":"uint64"}],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address","name":"owner","type":"address"}],"name":"OwnableInvalidOwner","type":"error"},{"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"OwnableUnauthorizedAccount","type":"error"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"}],"name":"PRBMath_MulDiv18_Overflow","type":"error"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"},{"internalType":"uint256","name":"denominator","type":"uint256"}],"name":"PRBMath_MulDiv_Overflow","type":"error"},{"inputs":[],"name":"PRBMath_SD59x18_Div_InputTooSmall","type":"error"},{"inputs":[{"internalType":"SD59x18","name":"x","type":"int256"},{"internalType":"SD59x18","name":"y","type":"int256"}],"name":"PRBMath_SD59x18_Div_Overflow","type":"error"},{"inputs":[{"internalType":"SD59x18","name":"x","type":"int256"}],"name":"PRBMath_SD59x18_Exp2_InputTooBig","type":"error"},{"inputs":[{"internalType":"SD59x18","name":"x","type":"int256"}],"name":"PRBMath_SD59x18_Exp_InputTooBig","type":"error"},{"inputs":[{"internalType":"SD59x18","name":"x","type":"int256"}],"name":"PRBMath_SD59x18_Log_InputTooSmall","type":"error"},{"inputs":[],"name":"PRBMath_SD59x18_Mul_InputTooSmall","type":"error"},{"inputs":[{"internalType":"SD59x18","name":"x","type":"int256"},{"internalType":"SD59x18","name":"y","type":"int256"}],"name":"PRBMath_SD59x18_Mul_Overflow","type":"error"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"oracle","type":"address"},{"indexed":true,"internalType":"string","name":"question","type":"string"},{"indexed":false,"internalType":"uint256","name":"outcomeSlotCount","type":"uint256"}],"name":"ConditionPreparation","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint64","name":"newFee","type":"uint64"}],"name":"FeeChanged","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"fees","type":"uint256"}],"name":"FeeWithdrawal","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"fundingChange","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"outcomeTokenAmounts","type":"uint256"}],"name":"FundingChanged","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"initialFunding","type":"uint256"}],"name":"MarketMakerCreated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"trader","type":"address"},{"indexed":false,"internalType":"int256[]","name":"outcomeTokenAmounts","type":"int256[]"},{"indexed":false,"internalType":"int256","name":"outcomeTokenNetCost","type":"int256"},{"indexed":false,"internalType":"uint256","name":"marketFees","type":"uint256"}],"name":"OutcomeTokenTrade","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"previousOwner","type":"address"},{"indexed":true,"internalType":"address","name":"newOwner","type":"address"}],"name":"OwnershipTransferred","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"redeemer","type":"address"},{"indexed":true,"internalType":"contract IERC20","name":"collateralToken","type":"address"},{"indexed":true,"internalType":"bytes32","name":"parentCollectionId","type":"bytes32"},{"indexed":false,"internalType":"bytes32","name":"conditionId","type":"bytes32"},{"indexed":false,"internalType":"uint256[]","name":"indexSets","type":"uint256[]"},{"indexed":false,"internalType":"uint256","name":"payout","type":"uint256"}],"name":"PayoutRedemption","type":"event"},{"inputs":[],"name":"FEE_RANGE","outputs":[{"internalType":"uint64","name":"","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"UNIT_DEC","outputs":[{"internalType":"int256","name":"","type":"int256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"alpha","outputs":[{"internalType":"SD59x18","name":"","type":"int256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint8","name":"idx","type":"uint8"}],"name":"calcMarginalPrice","outputs":[{"internalType":"int256","name":"","type":"int256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"int256[]","name":"deltaOutcomeAmounts","type":"int256[]"}],"name":"calcNetCost","outputs":[{"internalType":"int256","name":"netCost","type":"int256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint64","name":"_fee","type":"uint64"}],"name":"changeFee","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256[]","name":"payouts","type":"uint256[]"}],"name":"closeMarket","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"collateralToken","outputs":[{"internalType":"contract IERC20","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"fee","outputs":[{"internalType":"uint64","name":"","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"feeReceived","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"funding","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"int256","name":"q0","type":"int256"},{"internalType":"int256","name":"q1","type":"int256"},{"internalType":"int256","name":"targetWad","type":"int256"},{"internalType":"bool","name":"first","type":"bool"}],"name":"getDelta","outputs":[{"internalType":"int256","name":"delta","type":"int256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"int256[]","name":"qs","type":"int256[]"},{"internalType":"uint8","name":"idx","type":"uint8"},{"internalType":"int256","name":"targetWad","type":"int256"}],"name":"getDeltaGeneric","outputs":[{"internalType":"int256","name":"delta","type":"int256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"fundingChange","type":"uint256"},{"internalType":"uint256","name":"outcomeTokenAmounts_","type":"uint256"}],"name":"initializeMarket","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"int256[]","name":"deltaOutcomeAmounts_","type":"int256[]"}],"name":"makePrediction","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"outcomeSlotCount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"outcomeTokenAmounts","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"payoutDenominator","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"payoutNumerators","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"oracle","type":"address"},{"internalType":"string","name":"_question","type":"string"},{"internalType":"uint256","name":"_outcomeSlotCount","type":"uint256"}],"name":"prepareCondition","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"question","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"redeemPayout","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"renounceOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"","type":"address"},{"internalType":"uint256","name":"","type":"uint256"}],"name":"userShares","outputs":[{"internalType":"int256","name":"","type":"int256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"withdrawFee","outputs":[],"stateMutability":"nonpayable","type":"function"}];
 
     // Get the dataset name from the URL
     const { dataset } = $page.params;
@@ -29,33 +33,18 @@
     // Bar Chart Data
     const currentAllocationData = lastDataLine;
     const proposedAllocationData = new Array(assetNames.length).fill(1);
+    let marginalPrices = $state(new Array(assetNames.length).fill(0));
 
-    let selectedAsset = $state(assetNames[0] || "");
+    let selectedAsset = $state("");
     const selectItems = assetNames.map((name) => ({ name, value: name }));
 
     let amount = $state(1);
+    let decimals = $state(18); // Default to 18, will be updated from contract
 
     let isInvalid = $derived(amount <= 0);
 
     const increment = () => (amount += 1);
     const decrement = () => (amount = Math.max(0, amount - 1));
-
-    // Mock contract, as we can't make live calls.
-    // Replace this with your actual contract instance.
-    const mockContract = {
-        getB: async (q_s: bigint[]) => {
-            // Mock implementation: alpha * (q0 + q1)
-            const alpha = 500000000000000000n; // 0.5
-            const sum = q_s[0] + q_s[1];
-            return (sum * alpha) / UNIT_DEC;
-        },
-        ln: async (val: bigint) => {
-            // Mock ln() using JS Math.log. This is a rough approximation.
-            const valFloat = parseFloat(ethers.formatUnits(val, 18));
-            const lnValFloat = Math.log(valFloat);
-            return ethers.parseUnits(lnValFloat.toString(), 18);
-        },
-    };
 
     let price = $state("..."); // Initial state
 
@@ -65,35 +54,66 @@
             : "0.00",
     );
 
-    $effect(() => {
-        const calculatePrice = async () => {
-            try {
-                // Mock values for demonstration.
-                // You would replace these with reactive state from your app.
-                const q0 = "100";
-                const q1 = "120";
-                const targetWad = "700000000000000000"; // 0.7
-                const first = true;
+    const getUnitDec = async () => {
+        try {
+            const provider = new ethers.JsonRpcProvider("https://sepolia.infura.io/v3/b9794ad1ddf84dfb8c34d6bb5dca2001");
+            const contract = new ethers.Contract(contractAddress, contractABI, provider);
+            const unitDec = await contract.UNIT_DEC();
+            decimals = Math.round(Math.log10(Number(unitDec)));
+        } catch (error) {
+            console.error("Error fetching UNIT_DEC from contract:", error);
+        }
+    }
 
-                const delta = await getDeltaJS(
-                    q0,
-                    q1,
-                    targetWad,
-                    first,
-                    mockContract,
-                );
+    const getContractPrice = async () => {
+        if (isInvalid) {
+            price = "0.00";
+            return;
+        }
+        try {
+            const provider = new ethers.JsonRpcProvider("https://sepolia.infura.io/v3/b9794ad1ddf84dfb8c34d6bb5dca2001");
+            const contract = new ethers.Contract(contractAddress, contractABI, provider);
 
-                // Format the BigInt result for display.
-                price = parseFloat(ethers.formatUnits(delta, 18)).toFixed(2);
-            } catch (error) {
-                console.error("Error calculating price:", error);
-                price = "Error";
+            const deltaOutcomeAmounts = new Array(assetNames.length).fill(0);
+            const assetIndex = assetNames.indexOf(selectedAsset);
+            if (assetIndex !== -1) {
+                deltaOutcomeAmounts[assetIndex] = ethers.parseUnits(amount.toString(), decimals);
             }
-        };
-        calculatePrice();
+
+            const netCost = await contract.calcNetCost(deltaOutcomeAmounts);
+            const cost = parseFloat(ethers.formatUnits(netCost, decimals));
+            price = Math.abs(cost).toFixed(2);
+        } catch (error) {
+            console.error("Error fetching price from contract:", error);
+            price = "Error";
+        }
+    };
+
+    const getMarginalPrices = async () => {
+        try {
+            const provider = new ethers.JsonRpcProvider("https://sepolia.infura.io/v3/b9794ad1ddf84dfb8c34d6bb5dca2001");
+            const contract = new ethers.Contract(contractAddress, contractABI, provider);
+            const prices = await Promise.all(
+                assetNames.map((_, i) => contract.calcMarginalPrice(i))
+            );
+            marginalPrices = prices.map(p => parseFloat(ethers.formatUnits(p, decimals)));
+        } catch (error) {
+            console.error("Error fetching marginal prices from contract:", error);
+        }
+    }
+
+    onMount(async () => {
+        selectedAsset = assetNames[0] || "";
+        await getUnitDec();
+        getContractPrice();
+        getMarginalPrices();
     });
 
-    const options: ApexOptions = {
+    $effect(() => {
+        getContractPrice();
+    });
+
+    let options: ApexOptions = $derived({
         colors: ["#1A56DB", "#FDBA8C"],
         series: [
             {
@@ -109,7 +129,7 @@
                 color: "#FDBA8C",
                 data: assetNames.map((name: string, i: number) => ({
                     x: name,
-                    y: proposedAllocationData[i],
+                    y: marginalPrices[i],
                 })),
             },
         ],
@@ -186,7 +206,7 @@
         fill: {
             opacity: 1,
         },
-    };
+    });
 
     let lineChartOptions = $state<ApexOptions>({
         chart: {
