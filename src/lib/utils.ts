@@ -12,7 +12,7 @@ export async function getDeltaJS(
   q1: string | number,
   targetWad: string | number,
   first: boolean,
-  contract: Contract
+  contract: Contract,
 ): Promise<bigint> {
   // 1) Переводим q0, q1 в WAD (умножая на 1e18)
   const q0Wad = BigInt(q0) * UNIT_DEC;
