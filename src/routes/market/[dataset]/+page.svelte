@@ -5,8 +5,7 @@
     import { Card, Button, Label, Input, Alert, Select } from "flowbite-svelte";
     import { ethers } from "ethers";
     import { page } from "$app/stores";
-    import { UNIT_DEC } from "$lib/utils";
-    import * as fixtures from "$lib/fixtures";
+    import { dataService, type DataPoint } from "$lib/api";
 
     const contractAddress = "0x6d54f93e64c29A0D8FCF01039d1cbC701553c090";
     const contractABI = [{"inputs":[{"internalType":"contract IERC20","name":"_collateralToken","type":"address"},{"internalType":"uint64","name":"_fee","type":"uint64"}],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address","name":"owner","type":"address"}],"name":"OwnableInvalidOwner","type":"error"},{"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"OwnableUnauthorizedAccount","type":"error"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"}],"name":"PRBMath_MulDiv18_Overflow","type":"error"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"},{"internalType":"uint256","name":"denominator","type":"uint256"}],"name":"PRBMath_MulDiv_Overflow","type":"error"},{"inputs":[],"name":"PRBMath_SD59x18_Div_InputTooSmall","type":"error"},{"inputs":[{"internalType":"SD59x18","name":"x","type":"int256"},{"internalType":"SD59x18","name":"y","type":"int256"}],"name":"PRBMath_SD59x18_Div_Overflow","type":"error"},{"inputs":[{"internalType":"SD59x18","name":"x","type":"int256"}],"name":"PRBMath_SD59x18_Exp2_InputTooBig","type":"error"},{"inputs":[{"internalType":"SD59x18","name":"x","type":"int256"}],"name":"PRBMath_SD59x18_Exp_InputTooBig","type":"error"},{"inputs":[{"internalType":"SD59x18","name":"x","type":"int256"}],"name":"PRBMath_SD59x18_Log_InputTooSmall","type":"error"},{"inputs":[],"name":"PRBMath_SD59x18_Mul_InputTooSmall","type":"error"},{"inputs":[{"internalType":"SD59x18","name":"x","type":"int256"},{"internalType":"SD59x18","name":"y","type":"int256"}],"name":"PRBMath_SD59x18_Mul_Overflow","type":"error"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"oracle","type":"address"},{"indexed":true,"internalType":"string","name":"question","type":"string"},{"indexed":false,"internalType":"uint256","name":"outcomeSlotCount","type":"uint256"}],"name":"ConditionPreparation","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint64","name":"newFee","type":"uint64"}],"name":"FeeChanged","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"fees","type":"uint256"}],"name":"FeeWithdrawal","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"fundingChange","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"outcomeTokenAmounts","type":"uint256"}],"name":"FundingChanged","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"initialFunding","type":"uint256"}],"name":"MarketMakerCreated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"trader","type":"address"},{"indexed":false,"internalType":"int256[]","name":"outcomeTokenAmounts","type":"int256[]"},{"indexed":false,"internalType":"int256","name":"outcomeTokenNetCost","type":"int256"},{"indexed":false,"internalType":"uint256","name":"marketFees","type":"uint256"}],"name":"OutcomeTokenTrade","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"previousOwner","type":"address"},{"indexed":true,"internalType":"address","name":"newOwner","type":"address"}],"name":"OwnershipTransferred","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"redeemer","type":"address"},{"indexed":true,"internalType":"contract IERC20","name":"collateralToken","type":"address"},{"indexed":true,"internalType":"bytes32","name":"parentCollectionId","type":"bytes32"},{"indexed":false,"internalType":"bytes32","name":"conditionId","type":"bytes32"},{"indexed":false,"internalType":"uint256[]","name":"indexSets","type":"uint256[]"},{"indexed":false,"internalType":"uint256","name":"payout","type":"uint256"}],"name":"PayoutRedemption","type":"event"},{"inputs":[],"name":"FEE_RANGE","outputs":[{"internalType":"uint64","name":"","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"UNIT_DEC","outputs":[{"internalType":"int256","name":"","type":"int256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"alpha","outputs":[{"internalType":"SD59x18","name":"","type":"int256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint8","name":"idx","type":"uint8"}],"name":"calcMarginalPrice","outputs":[{"internalType":"int256","name":"","type":"int256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"int256[]","name":"deltaOutcomeAmounts","type":"int256[]"}],"name":"calcNetCost","outputs":[{"internalType":"int256","name":"netCost","type":"int256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint64","name":"_fee","type":"uint64"}],"name":"changeFee","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256[]","name":"payouts","type":"uint256[]"}],"name":"closeMarket","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"collateralToken","outputs":[{"internalType":"contract IERC20","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"fee","outputs":[{"internalType":"uint64","name":"","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"feeReceived","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"funding","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"int256","name":"q0","type":"int256"},{"internalType":"int256","name":"q1","type":"int256"},{"internalType":"int256","name":"targetWad","type":"int256"},{"internalType":"bool","name":"first","type":"bool"}],"name":"getDelta","outputs":[{"internalType":"int256","name":"delta","type":"int256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"int256[]","name":"qs","type":"int256[]"},{"internalType":"uint8","name":"idx","type":"uint8"},{"internalType":"int256","name":"targetWad","type":"int256"}],"name":"getDeltaGeneric","outputs":[{"internalType":"int256","name":"delta","type":"int256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"fundingChange","type":"uint256"},{"internalType":"uint256","name":"outcomeTokenAmounts_","type":"uint256"}],"name":"initializeMarket","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"int256[]","name":"deltaOutcomeAmounts_","type":"int256[]"}],"name":"makePrediction","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"outcomeSlotCount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"outcomeTokenAmounts","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"payoutDenominator","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"payoutNumerators","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"oracle","type":"address"},{"internalType":"string","name":"_question","type":"string"},{"internalType":"uint256","name":"_outcomeSlotCount","type":"uint256"}],"name":"prepareCondition","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"question","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"redeemPayout","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"renounceOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"","type":"address"},{"internalType":"uint256","name":"","type":"uint256"}],"name":"userShares","outputs":[{"internalType":"int256","name":"","type":"int256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"withdrawFee","outputs":[],"stateMutability":"nonpayable","type":"function"}];
@@ -14,29 +13,16 @@
     // Get the dataset name from the URL
     const { dataset } = $page.params;
 
-    // Load the appropriate data from the fixtures
-    const assetData = (fixtures as { [key: string]: string })[dataset] || "";
-    if (!assetData) {
-        console.error(`Dataset "${dataset}" not found in fixtures.`);
-    }
+    let assetNames = $state<string[]>([]);
+    let dataRows = $state<number[][]>([]);
+    let currentAllocationData = $state<number[]>([]);
+    let loading = $state(true);
+    let error = $state<string | null>(null);
 
-    // Parse generic asset data
-    const lines = assetData.trim().split("\n");
-    const assetNames = lines[0].split(",");
-    const dataRows = lines
-        .slice(1)
-        .map((line: string) =>
-            line.split(",").map((val: string) => parseFloat(val)),
-        );
-    const lastDataLine = dataRows[dataRows.length - 1] || [];
-
-    // Bar Chart Data
-    const currentAllocationData = lastDataLine;
-    const proposedAllocationData = new Array(assetNames.length).fill(1);
-    let marginalPrices = $state(new Array(assetNames.length).fill(0));
+    let marginalPrices = $state<number[]>([]);
 
     let selectedAsset = $state("");
-    const selectItems = assetNames.map((name) => ({ name, value: name }));
+    let selectItems = $derived(assetNames.map((name) => ({ name, value: name })));
 
     let amount = $state(1);
     let decimals = $state(18); // Default to 18, will be updated from contract
@@ -103,10 +89,35 @@
     }
 
     onMount(async () => {
-        selectedAsset = assetNames[0] || "";
-        await getUnitDec();
-        getContractPrice();
-        getMarginalPrices();
+        try {
+            loading = true;
+            let data: DataPoint;
+            if (dataset === 'drivers') {
+                data = await dataService.getDriverData();
+            } else if (dataset === 'crypto') {
+                data = await dataService.getCryptoData();
+            } else {
+                throw new Error(`Unknown dataset: ${dataset}`);
+            }
+
+            assetNames = data.headers;
+            dataRows = data.rows;
+            marginalPrices = new Array(assetNames.length).fill(0);
+            if (data.rows.length > 0) {
+                currentAllocationData = data.rows[data.rows.length - 1];
+            }
+
+            selectedAsset = assetNames[0] || "";
+
+            // Now fetch contract data
+            await getUnitDec();
+            await Promise.all([getContractPrice(), getMarginalPrices()]);
+
+        } catch (e: any) {
+            error = e.message;
+        } finally {
+            loading = false;
+        }
     });
 
     $effect(() => {
@@ -208,7 +219,7 @@
         },
     });
 
-    let lineChartOptions = $state<ApexOptions>({
+    let lineChartOptions: ApexOptions = $derived({
         chart: {
             height: "320px",
             type: "line",
@@ -295,7 +306,13 @@
 
 <div class="grid grid-cols-3 items-start gap-8 p-8">
     <div class="col-span-2">
-        <Chart {options} />
+        {#if loading}
+            <p>Loading chart...</p>
+        {:else if error}
+            <Alert color="red">{error}</Alert>
+        {:else}
+            <Chart {options} />
+        {/if}
     </div>
     <Card class="h-full p-6">
         <form class="flex h-full flex-col justify-center">
@@ -373,7 +390,13 @@
         </form>
     </Card>
     <div class="col-span-3 rounded-lg bg-white p-4 dark:bg-gray-800 md:p-6">
-        <Chart options={lineChartOptions} />
+        {#if loading}
+            <p>Loading chart...</p>
+        {:else if error}
+            <Alert color="red">{error}</Alert>
+        {:else}
+            <Chart options={lineChartOptions} />
+        {/if}
     </div>
 </div>
 
