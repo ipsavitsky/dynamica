@@ -27,9 +27,10 @@ function parseData(data: string) {
   return { headers, rows };
 }
 
-// Scale data by 10^18 for oracle format
+// Scale data by 10^16 for oracle format
 function scaleDataForOracle(values: number[]): number[] {
-  return values.map(val => Number(ethers.parseUnits(val.toString(), 18)));
+  const SCALE_FACTOR = Math.pow(10, 15);
+  return values.map(val => Math.floor(val * SCALE_FACTOR));
 }
 
 // Get only the latest row
