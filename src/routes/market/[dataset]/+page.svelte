@@ -2,11 +2,14 @@
     import { onMount } from "svelte";
     import type { ApexOptions } from "apexcharts";
     import { Chart } from "@flowbite-svelte-plugins/chart";
-    import { Card, Button, Label, Input, Alert, Select } from "flowbite-svelte";
+    import { Card, Button, Label, Input, Alert, Select, Modal } from "flowbite-svelte";
     import { ethers } from "ethers";
     import { page } from "$app/stores";
     import { dataService, type DataPoint } from "$lib/api";
     import { contractABI } from "$lib/abi";
+    import { buyShares, sellShares, redeemPayout, checkAllowance, approveTokens, getTransactionCost } from "$lib/utils";
+    import { initializeAppKit } from "$lib/appkit";
+    import { browser } from "$app/environment";
 
     const contractAddress = "0x6d54f93e64c29A0D8FCF01039d1cbC701553c090";
 
@@ -30,6 +33,22 @@
     let combinedMode = $state(true); // Toggle between combined and separate chart modes
 
     let isInvalid = $derived(amount <= 0);
+    
+    let isBuying = $state(false);
+    let isSelling = $state(false);
+    let isRedeeming = $state(false);
+    let isApproving = $state(false);
+    
+    let transactionCost = $state<string | null>(null);
+    let showConfirmation = $state(false);
+    let pendingTransaction = $state<'buy' | 'sell' | null>(null);
+    
+    let appKit: any = null;
+    
+    // Initialize AppKit in browser
+    if (browser) {
+        appKit = initializeAppKit();
+    }
 
     const increment = () => (amount += 1);
     const decrement = () => (amount = Math.max(0, amount - 1));
@@ -420,6 +439,206 @@
             console.error("Failed to process asset data:", error);
         }
     });
+
+    async function getProvider() {
+        if (!appKit) {
+            console.log('AppKit not available, trying to reinitialize...');
+            if (browser) {
+                appKit = initializeAppKit();
+            }
+            if (!appKit) {
+                console.error('Failed to initialize AppKit');
+                return null;
+            }
+        }
+        
+        console.log('AppKit available:', !!appKit);
+        console.log('AppKit methods:', Object.keys(appKit));
+        
+        let provider;
+        
+        // Try window.ethereum first as it usually works best for contract interactions
+        if (typeof window !== 'undefined' && window.ethereum) {
+            provider = window.ethereum;
+            console.log('Using window.ethereum as primary provider');
+        } else if (appKit.getProvider) {
+            provider = appKit.getProvider();
+            console.log('getProvider() returned:', provider);
+        } else if (appKit.universalProvider) {
+            provider = appKit.universalProvider;
+            console.log('Got provider via universalProvider');
+        } else if (appKit.getWalletProvider) {
+            provider = appKit.getWalletProvider();
+            console.log('Got provider via getWalletProvider');
+        } else if (appKit.provider) {
+            provider = appKit.provider;
+            console.log('Got provider via .provider property');
+        }
+        
+        if (!provider) {
+            console.error('No provider available');
+            console.log('Available appKit properties:', Object.keys(appKit));
+            return null;
+        }
+        
+        console.log('Provider found:', provider);
+        return provider;
+    }
+
+    async function showTransactionPreview(type: 'buy' | 'sell') {
+        if (!appKit || isInvalid) return;
+
+        try {
+            const provider = await getProvider();
+            if (!provider) return;
+
+            const ethersProvider = new ethers.BrowserProvider(provider);
+            const assetIndex = assetNames.indexOf(selectedAsset);
+            
+            if (assetIndex === -1) {
+                console.error('Selected asset not found');
+                return;
+            }
+
+            const cost = await getTransactionCost(assetIndex, amount.toString(), ethersProvider);
+            if (cost) {
+                transactionCost = cost.cost;
+                pendingTransaction = type;
+                showConfirmation = true;
+            }
+        } catch (error) {
+            console.error('Error calculating transaction cost:', error);
+        }
+    }
+
+    async function confirmTransaction() {
+        if (!pendingTransaction || !transactionCost) return;
+
+        const caipAddress = appKit.getCaipAddress();
+        if (!caipAddress) {
+            console.log('Wallet not connected');
+            return;
+        }
+
+        const address = caipAddress.split(':')[2]; // Extract address from CAIP format
+
+        try {
+            const provider = await getProvider();
+            if (!provider) return;
+
+            const ethersProvider = new ethers.BrowserProvider(provider);
+            const signer = await ethersProvider.getSigner();
+
+            // Check allowance first
+            const allowanceInfo = await checkAllowance(address, ethersProvider);
+            if (!allowanceInfo) return;
+
+            const requiredAmount = parseFloat(transactionCost);
+            const currentAllowance = parseFloat(allowanceInfo.allowance);
+
+            console.log('Required amount:', requiredAmount);
+            console.log('Current allowance:', currentAllowance);
+
+            // If insufficient allowance, approve first
+            if (currentAllowance < requiredAmount) {
+                console.log('Insufficient allowance, requesting approval...');
+                isApproving = true;
+                
+                // Approve a bit more than needed to avoid future approvals
+                const approveAmount = (requiredAmount * 2).toString();
+                const approvalSuccess = await approveTokens(approveAmount, signer);
+                
+                isApproving = false;
+                
+                if (!approvalSuccess) {
+                    console.error('Token approval failed');
+                    return;
+                }
+            }
+
+            // Now execute the transaction
+            const assetIndex = assetNames.indexOf(selectedAsset);
+            let success = false;
+
+            if (pendingTransaction === 'buy') {
+                isBuying = true;
+                success = await buyShares(assetIndex, amount.toString(), signer);
+                isBuying = false;
+            } else if (pendingTransaction === 'sell') {
+                isSelling = true;
+                success = await sellShares(assetIndex, amount.toString(), signer);
+                isSelling = false;
+            }
+
+            if (success) {
+                console.log(`${pendingTransaction} successful`);
+                await Promise.all([getContractPrice(), getMarginalPrices()]);
+            }
+
+        } catch (error) {
+            console.error(`Error during ${pendingTransaction}:`, error);
+        } finally {
+            showConfirmation = false;
+            pendingTransaction = null;
+            transactionCost = null;
+            isBuying = false;
+            isSelling = false;
+            isApproving = false;
+        }
+    }
+
+    async function handleBuy(event: Event) {
+        event.preventDefault();
+        await showTransactionPreview('buy');
+    }
+
+    async function handleSell(event: Event) {
+        event.preventDefault();
+        await showTransactionPreview('sell');
+    }
+
+    async function handleRedeem() {
+        if (!appKit || isRedeeming) return;
+        
+        isRedeeming = true;
+        
+        try {
+            // Check if wallet is connected
+            const caipAddress = appKit.getCaipAddress();
+            if (!caipAddress) {
+                console.log('Wallet not connected, opening connection modal...');
+                await appKit.open();
+                return;
+            }
+            
+            const provider = await getProvider();
+            if (!provider) return;
+            
+            // Ensure provider is connected
+            console.log('Provider object:', provider);
+            console.log('Provider methods:', Object.getOwnPropertyNames(provider));
+            console.log('Provider prototype methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(provider)));
+            
+            // Skip provider connection and try to use it directly
+            console.log('Provider session:', provider.session);
+            console.log('Provider connected:', provider.connected);
+            console.log('Trying to use provider directly without calling connect...');
+            
+            const ethersProvider = new ethers.BrowserProvider(provider);
+            const signer = await ethersProvider.getSigner();
+            
+            console.log('Redeeming payout...');
+            const success = await redeemPayout(signer);
+            
+            if (success) {
+                console.log('Redeem successful');
+            }
+        } catch (error) {
+            console.error('Error during redeem:', error);
+        } finally {
+            isRedeeming = false;
+        }
+    }
 </script>
 
 <div class="grid grid-cols-3 items-start gap-8 p-8">
@@ -488,22 +707,27 @@
             </Label>
             <div class="grid grid-cols-2 gap-4 mb-4">
                 <Button
-                    type="submit"
+                    onclick={handleBuy}
                     size="xl"
                     class="w-full"
-                    disabled={isInvalid}
-                    color="green">Buy</Button
+                    disabled={isInvalid || isBuying}
+                    color="green">{isBuying ? 'Buying...' : 'Buy'}</Button
                 >
                 <Button
-                    type="submit"
+                    onclick={handleSell}
                     size="xl"
                     class="w-full"
-                    disabled={isInvalid}
-                    color="red">Sell</Button
+                    disabled={isInvalid || isSelling}
+                    color="red">{isSelling ? 'Selling...' : 'Sell'}</Button
                 >
             </div>
-            <Button type="button" size="xl" class="w-full" color="orange"
-                >Redeem</Button
+            <Button 
+                onclick={handleRedeem} 
+                size="xl" 
+                class="w-full" 
+                color="orange"
+                disabled={isRedeeming}
+                >{isRedeeming ? 'Redeeming...' : 'Redeem'}</Button
             >
         </form>
     </Card>
@@ -537,6 +761,56 @@
         {/if}
     </div>
 </div>
+
+<!-- Transaction Confirmation Modal -->
+<Modal bind:open={showConfirmation} title="Confirm Transaction">
+    {#if pendingTransaction && transactionCost}
+        <div class="space-y-4">
+            <div class="text-center">
+                <h3 class="text-lg font-semibold">
+                    {pendingTransaction === 'buy' ? 'Buy' : 'Sell'} {amount} shares of {selectedAsset}
+                </h3>
+                <p class="text-2xl font-bold text-gray-900 dark:text-white mt-2">
+                    Cost: {transactionCost} tokens
+                </p>
+            </div>
+            
+            <div class="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
+                <p class="text-sm text-yellow-800 dark:text-yellow-200">
+                    This transaction will require token approval if you haven't approved enough tokens yet.
+                    You may see two transactions: one for approval and one for the trade.
+                </p>
+            </div>
+
+            <div class="flex space-x-4">
+                <Button 
+                    onclick={confirmTransaction} 
+                    disabled={isBuying || isSelling || isApproving}
+                    color="green" 
+                    class="flex-1"
+                >
+                    {#if isApproving}
+                        Approving...
+                    {:else if isBuying}
+                        Buying...
+                    {:else if isSelling}
+                        Selling...
+                    {:else}
+                        Confirm
+                    {/if}
+                </Button>
+                <Button 
+                    onclick={() => showConfirmation = false} 
+                    color="alternative" 
+                    class="flex-1"
+                    disabled={isBuying || isSelling || isApproving}
+                >
+                    Cancel
+                </Button>
+            </div>
+        </div>
+    {/if}
+</Modal>
 
 <style>
     /* Hide spinner buttons from number input */
