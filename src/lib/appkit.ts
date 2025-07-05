@@ -5,8 +5,6 @@ import { arbitrum, mainnet } from '@reown/appkit/networks'
 
 // Define a type for the AppKit instance to be used throughout the app
 export type AppKit = ReturnType<typeof createAppKit>;
-type AppKitNetwork = typeof arbitrum | typeof mainnet;
-
 let appKit: AppKit | undefined = undefined;
 
 /**
@@ -24,7 +22,7 @@ export function initializeAppKit() {
 			throw new Error('VITE_REOWN_PROJECT_ID is not set in your .env file');
 		}
 
-		const networks: [AppKitNetwork, ...AppKitNetwork[]] = [arbitrum, mainnet];
+		const networks = [arbitrum, mainnet];
 
 		// Create adapter
 		const ethersAdapter = new EthersAdapter();
