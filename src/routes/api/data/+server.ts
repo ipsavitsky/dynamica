@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 import { driverPoints, cryptoPrices } from '$lib/fixtures';
+import { ethers } from 'ethers';
 
 // In-memory storage for demo configuration
 let demoConfig = {
@@ -26,6 +27,11 @@ function parseData(data: string) {
   return { headers, rows };
 }
 
+// Scale data by 10^18 for oracle format
+function scaleDataForOracle(values: number[]): number[] {
+  return values.map(val => Number(ethers.parseUnits(val.toString(), 18)));
+}
+
 // Get only the latest row
 function getLatestRow(data: string) {
   const lines = data.trim().split('\n');
@@ -49,6 +55,7 @@ export async function GET({ url }: RequestEvent) {
   const searchParams = url.searchParams;
   const type = searchParams.get('type'); // 'drivers' or 'crypto'
   const latest = searchParams.get('latest'); // 'true' to get latest row
+  const oracle = searchParams.get('oracle'); // 'true' to get oracle format
   const timestamp = searchParams.get('timestamp'); // future: timestamp filtering
   const id = searchParams.get('id'); // future: ID filtering
 
@@ -72,6 +79,17 @@ export async function GET({ url }: RequestEvent) {
       // Get all accessible data
       result = parseData(data);
     }
+
+    // If oracle flag is set, return scaled data in oracle format
+    if (oracle === 'true') {
+      if (result.rows && result.rows.length > 0) {
+        const latestRow = result.rows[result.rows.length - 1]; // Get the latest row
+        const scaledData = scaleDataForOracle(latestRow);
+        return json({ data: scaledData });
+      } else {
+        return json({ error: 'No data available' }, { status: 404 });
+      }
+    }
   } else if (type === 'crypto') {
     if (!demoConfig.cryptoPrices.enabled) {
       return json({ error: 'Crypto data is disabled' }, { status: 400 });
@@ -89,6 +107,17 @@ export async function GET({ url }: RequestEvent) {
     } else {
       // Get all accessible data
       result = parseData(data);
+    }
+
+    // If oracle flag is set, return scaled data in oracle format
+    if (oracle === 'true') {
+      if (result.rows && result.rows.length > 0) {
+        const latestRow = result.rows[result.rows.length - 1]; // Get the latest row
+        const scaledData = scaleDataForOracle(latestRow);
+        return json({ data: scaledData });
+      } else {
+        return json({ error: 'No data available' }, { status: 404 });
+      }
     }
   } else {
     // Return both datasets
@@ -121,6 +150,28 @@ export async function GET({ url }: RequestEvent) {
       drivers: driverData,
       crypto: cryptoData
     };
+
+    // If oracle flag is set, return scaled data in oracle format
+    if (oracle === 'true') {
+      const allData: number[] = [];
+      
+      if (driverData && driverData.rows && driverData.rows.length > 0) {
+        const latestDriverRow = driverData.rows[driverData.rows.length - 1];
+        allData.push(...latestDriverRow);
+      }
+      
+      if (cryptoData && cryptoData.rows && cryptoData.rows.length > 0) {
+        const latestCryptoRow = cryptoData.rows[cryptoData.rows.length - 1];
+        allData.push(...latestCryptoRow);
+      }
+      
+      if (allData.length > 0) {
+        const scaledData = scaleDataForOracle(allData);
+        return json({ data: scaledData });
+      } else {
+        return json({ error: 'No data available' }, { status: 404 });
+      }
+    }
   }
 
   return json(result);
