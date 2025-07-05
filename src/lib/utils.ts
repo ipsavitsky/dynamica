@@ -1,5 +1,17 @@
+import { ethers } from 'ethers';
+
 // 1e18 в BigNumber, adapted for ethers v6 (native BigInt)
 export const UNIT_DEC = 1000000000000000000n;
+
+// ERC20 ABI for balance and decimals
+const ERC20_ABI = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  "function symbol() view returns (string)"
+];
+
+// Mock token contract address
+export const MOCK_TOKEN_ADDRESS = "0x74569DcAb17C4de8A0C19272be91b095de0bdd38";
 
 // Define an interface for the contract to ensure type safety.
 export interface Contract {
@@ -45,4 +57,36 @@ export async function getDeltaJS(
   // The adjustment has been scaled to WAD for correct calculation.
   const delta = raw + adjustment * UNIT_DEC;
   return delta;
+}
+
+export async function getTokenBalance(address: string, provider: ethers.Provider): Promise<{ balance: string; symbol: string } | null> {
+  try {
+    console.log('Creating contract with address:', MOCK_TOKEN_ADDRESS);
+    console.log('User address:', address);
+    
+    const contract = new ethers.Contract(MOCK_TOKEN_ADDRESS, ERC20_ABI, provider);
+    
+    console.log('Contract created, fetching balance...');
+    
+    const [balance, decimals, symbol] = await Promise.all([
+      contract.balanceOf(address),
+      contract.decimals(),
+      contract.symbol()
+    ]);
+    
+    console.log('Raw balance:', balance.toString());
+    console.log('Decimals:', decimals.toString());
+    console.log('Symbol:', symbol);
+    
+    const formattedBalance = ethers.formatUnits(balance, decimals);
+    console.log('Formatted balance:', formattedBalance);
+    
+    return {
+      balance: parseFloat(formattedBalance).toFixed(2),
+      symbol: symbol
+    };
+  } catch (error) {
+    console.error('Error fetching token balance:', error);
+    return null;
+  }
 }
