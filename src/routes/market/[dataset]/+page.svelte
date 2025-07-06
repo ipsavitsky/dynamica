@@ -26,6 +26,7 @@
     let error = $state<string | null>(null);
 
     let marginalPrices = $state<number[]>([]);
+    let userShares = $state<number[]>([]);
 
     let selectedAsset = $state("");
     let selectItems = $derived(assetNames.map((name) => ({ name, value: name })));
@@ -113,6 +114,30 @@
         }
     }
 
+    const getUserShares = async () => {
+        try {
+            if (!appKit) return;
+            
+            const caipAddress = appKit.getCaipAddress();
+            if (!caipAddress) {
+                userShares = new Array(assetNames.length).fill(0);
+                return;
+            }
+            
+            const userAddress = caipAddress.split(':')[2];
+            const provider = getContractProvider();
+            const contract = new ethers.Contract(contractAddress, contractABI, provider);
+            
+            const shares = await Promise.all(
+                assetNames.map((_, i) => contract.userShares(userAddress, i))
+            );
+            userShares = shares.map(share => parseFloat(ethers.formatUnits(share, decimals)));
+        } catch (error) {
+            console.error("Error fetching user shares from contract:", error);
+            userShares = new Array(assetNames.length).fill(0);
+        }
+    }
+
     onMount(async () => {
         try {
             loading = true;
@@ -128,6 +153,7 @@
             assetNames = data.headers;
             dataRows = data.rows;
             marginalPrices = new Array(assetNames.length).fill(0);
+            userShares = new Array(assetNames.length).fill(0);
             if (data.rows.length > 0) {
                 currentAllocationData = data.rows[data.rows.length - 1];
             }
@@ -139,7 +165,7 @@
 
             // Now fetch contract data
             await getUnitDec();
-            await Promise.all([getContractPrice(), getMarginalPrices()]);
+            await Promise.all([getContractPrice(), getMarginalPrices(), getUserShares()]);
 
         } catch (e: any) {
             error = e.message;
@@ -463,6 +489,13 @@
         };
     });
 
+    // Refresh user shares when wallet connection changes
+    $effect(() => {
+        if (appKit && assetNames.length > 0) {
+            getUserShares();
+        }
+    });
+
     async function getProvider() {
         if (!appKit) {
             console.log('AppKit not available, trying to reinitialize...');
@@ -595,7 +628,7 @@
 
             if (success) {
                 console.log(`${pendingTransaction} successful`);
-                await Promise.all([getContractPrice(), getMarginalPrices()]);
+                await Promise.all([getContractPrice(), getMarginalPrices(), getUserShares()]);
             }
 
         } catch (error) {
@@ -655,6 +688,7 @@
 
             if (success) {
                 console.log('Redeem successful');
+                await Promise.all([getContractPrice(), getMarginalPrices(), getUserShares()]);
             }
         } catch (error) {
             console.error('Error during redeem:', error);
@@ -772,6 +806,108 @@
                         <Chart options={chartOption} />
                     </div>
                 {/each}
+            </div>
+        {/if}
+    </div>
+    
+    <!-- User Holdings Section -->
+    <div class="col-span-3 rounded-lg theme-card p-4 md:p-6 theme-border shadow-lg hover:opacity-90 transition-opacity mt-4">
+        <div class="mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="text-lg font-semibold theme-text">
+                        Your Holdings
+                    </h3>
+                    <p class="text-sm theme-text-secondary">
+                        Current share positions across all assets
+                    </p>
+                </div>
+                {#if userShares.some(share => share > 0)}
+                    <div class="text-right">
+                        <div class="text-2xl font-bold text-green-600 dark:text-green-400">
+                            {userShares.reduce((total, shares, index) => 
+                                total + (shares * (currentAllocationData[index] || 0)), 0
+                            ).toFixed(4)}
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Total Estimated Payout
+                        </p>
+                    </div>
+                {/if}
+            </div>
+        </div>
+        
+        {#if userShares.some(share => share > 0)}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {#each assetNames as assetName, index}
+                    {#if userShares[index] > 0}
+                        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-medium text-blue-800 dark:text-blue-200">
+                                    {assetName}
+                                </h4>
+                            </div>
+                            
+                            <!-- Shares Owned -->
+                            <div class="mb-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-blue-600 dark:text-blue-300">
+                                        Shares Owned:
+                                    </span>
+                                    <span class="text-xl font-bold text-blue-900 dark:text-blue-100">
+                                        {userShares[index].toFixed(3)}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <!-- Current Variable Distribution -->
+                            {#if currentAllocationData[index] !== undefined}
+                                <div class="mb-3">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm text-blue-600 dark:text-blue-300">
+                                            Current Distribution:
+                                        </span>
+                                        <span class="text-lg font-semibold text-blue-800 dark:text-blue-200">
+                                            {(currentAllocationData[index] * 100).toFixed(1)}%
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Estimated Instant Payout -->
+                                <div class="pt-2 border-t border-blue-200 dark:border-blue-700">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm font-medium text-blue-700 dark:text-blue-300">
+                                            Estimated Payout:
+                                        </span>
+                                        <span class="text-lg font-bold text-green-700 dark:text-green-400">
+                                            {(userShares[index] * currentAllocationData[index]).toFixed(4)}
+                                        </span>
+                                    </div>
+                                    <p class="text-xs text-blue-500 dark:text-blue-400 mt-1">
+                                        (shares × distribution)
+                                    </p>
+                                </div>
+                            {/if}
+                            
+                            <!-- Current Price -->
+                            {#if marginalPrices[index] > 0}
+                                <div class="mt-2 pt-2 border-t border-blue-200 dark:border-blue-700">
+                                    <p class="text-xs text-blue-500 dark:text-blue-400">
+                                        Current price: {marginalPrices[index].toFixed(4)}
+                                    </p>
+                                </div>
+                            {/if}
+                        </div>
+                    {/if}
+                {/each}
+            </div>
+        {:else}
+            <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                <svg class="mx-auto h-12 w-12 mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <p class="text-lg font-medium">No holdings yet</p>
+                <p class="text-sm">Buy some shares to see your positions here</p>
             </div>
         {/if}
     </div>
