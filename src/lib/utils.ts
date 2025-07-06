@@ -70,13 +70,10 @@ export async function getDeltaJS(
 
 // Function to get a reliable JSON RPC provider for contract calls
 export function getContractProvider(): ethers.JsonRpcProvider {
-  const tatumApiKey = import.meta.env.VITE_TATUM_API_KEY;
-  const rpcUrl = tatumApiKey 
-    ? `https://coston2-api.flare.network/ext/C/rpc?x-apikey=${tatumApiKey}`
-    : "https://coston2-api.flare.network/ext/C/rpc";
+  const rpcUrl = "https://testnet.hashio.io/api";
   
-  return new ethers.JsonRpcProvider(rpcUrl, 114, {
-    staticNetwork: ethers.Network.from(114)
+  return new ethers.JsonRpcProvider(rpcUrl, 296, {
+    staticNetwork: ethers.Network.from(296)
   });
 }
 

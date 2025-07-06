@@ -3,26 +3,26 @@ import { createAppKit } from '@reown/appkit'
 import { EthersAdapter } from '@reown/appkit-adapter-ethers'
 import { mainnet, defineChain } from '@reown/appkit/networks'
 
-// Define Coston2 testnet configuration
-const coston2Network = defineChain({
-	id: 114,
-	caipNetworkId: 'eip155:114',
+// Define Hedera testnet configuration
+const hederaTestnet = defineChain({
+	id: 296,
+	caipNetworkId: 'eip155:296',
 	chainNamespace: 'eip155',
-	name: 'Coston2 Testnet',
+	name: 'Hedera Testnet',
 	nativeCurrency: {
 		decimals: 18,
-		name: 'Coston2 Flare',
-		symbol: 'C2FLR',
+		name: 'HBAR',
+		symbol: 'HBAR',
 	},
 	rpcUrls: {
 		default: {
-			http: ['https://coston-api.flare.network/ext/C/rpc'],
+			http: ['https://testnet.hashio.io/api'],
 		},
 	},
 	blockExplorers: {
 		default: {
-			name: 'Coston2 Explorer',
-			url: 'https://coston2-explorer.flare.network',
+			name: 'HashScan',
+			url: 'https://hashscan.io/testnet',
 		},
 	},
 });
@@ -46,7 +46,7 @@ export function initializeAppKit() {
 			throw new Error('VITE_REOWN_PROJECT_ID is not set in your .env file');
 		}
 
-		const networks = [coston2Network, mainnet] as [typeof coston2Network, typeof mainnet];
+		const networks = [hederaTestnet, mainnet] as [typeof hederaTestnet, typeof mainnet];
 
 		// Create adapter
 		const ethersAdapter = new EthersAdapter();
@@ -55,7 +55,7 @@ export function initializeAppKit() {
 		appKit = createAppKit({
 			adapters: [ethersAdapter],
 			networks: [...networks],
-			defaultNetwork: coston2Network,
+			defaultNetwork: hederaTestnet,
 			projectId,
 			metadata: {
 				name: 'Market DApp',

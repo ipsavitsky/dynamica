@@ -14,18 +14,18 @@ export interface PredictionMarketConfig {
 }
 
 export const PREDICTION_MARKET_CONFIG: PredictionMarketConfig = {
-  // Base token address for prediction markets
-  baseTokenAddress: "0x61cE7ff8792faA0588AD69e22F9b88AAC6f409F7",
+  // Base token address for prediction markets (MockToken on Hedera)
+  baseTokenAddress: "0x6c024E280439EEC7f0e816151ef53659F1155af9",
   
   // Market configurations
   markets: {
     crypto: {
-      address: "0x01481e8f8a5480fCD7557102F48FeFdAA44b8279",
+      address: "0x1d78d565c900F82CdF7a397a2a8D06c4B6335309",
       name: "Cryptocurrency Market",
       description: "Prediction market for cryptocurrency price movements"
     },
     drivers: {
-      address: "0x9d127B8a587DD2fF08d24dA031eF1060625ae3f4",
+      address: "0x1d78d565c900F82CdF7a397a2a8D06c4B6335309",
       name: "Formula 1 Drivers Market", 
       description: "Prediction market for Formula 1 driver performance"
     }
