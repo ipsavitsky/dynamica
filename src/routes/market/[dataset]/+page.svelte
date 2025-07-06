@@ -156,6 +156,9 @@
     };
 
     $effect(() => {
+        // Watch for changes in amount and selectedAsset
+        amount;
+        selectedAsset;
         getContractPrice();
     });
 
