@@ -7,17 +7,19 @@
     import { page } from "$app/stores";
     import { dataService, type DataPoint } from "$lib/api";
     import { contractABI } from "$lib/abi";
-    import { buyShares, sellShares, redeemPayout, checkAllowance, approveTokens, getTransactionCost } from "$lib/utils";
+    import { buyShares, sellShares, redeemPayout, checkAllowance, approveTokens, getTransactionCost, getTokenBalance } from "$lib/utils";
     import { initializeAppKit } from "$lib/appkit";
     import { browser } from "$app/environment";
     import { getChartColors, getApexChartTheme, themeClasses } from "$lib/theme";
     import { getContractProvider } from "$lib/utils";
-
-    const contractAddress = "0x1B6aAe0A32dD1A95C85E3DB9a8F1F30dF7d02FeF";
+    import { getMarketAddress } from "$lib/config";
 
 
     // Get the dataset name from the URL
     const { dataset } = $page.params;
+    
+    // Get contract address for this dataset
+    const contractAddress = getMarketAddress(dataset) || "0x1B6aAe0A32dD1A95C85E3DB9a8F1F30dF7d02FeF";
 
     let assetNames = $state<string[]>([]);
     let dataRows = $state<number[][]>([]);
@@ -556,7 +558,7 @@
                 return;
             }
 
-            const cost = await getTransactionCost(assetIndex, amount.toString(), ethersProvider);
+            const cost = await getTransactionCost(assetIndex, amount.toString(), ethersProvider, contractAddress);
             if (cost) {
                 transactionCost = cost.cost;
                 pendingTransaction = type;
@@ -586,7 +588,7 @@
             const signer = await ethersProvider.getSigner();
 
             // Check allowance first
-            const allowanceInfo = await checkAllowance(address);
+            const allowanceInfo = await checkAllowance(address, ethersProvider, contractAddress);
             if (!allowanceInfo) return;
 
             const requiredAmount = parseFloat(transactionCost);
@@ -595,6 +597,22 @@
             console.log('Required amount:', requiredAmount);
             console.log('Current allowance:', currentAllowance);
 
+            // Check token balance first
+            const tokenBalance = await getTokenBalance(address, ethersProvider);
+            if (!tokenBalance) {
+                console.error('Could not get token balance');
+                return;
+            }
+
+            const currentBalance = parseFloat(tokenBalance.balance);
+            console.log('Current balance:', currentBalance);
+
+            if (currentBalance < requiredAmount) {
+                console.error('Insufficient token balance');
+                alert(`Insufficient balance. Required: ${requiredAmount.toFixed(4)} ${tokenBalance.symbol}, Available: ${currentBalance.toFixed(4)} ${tokenBalance.symbol}`);
+                return;
+            }
+
             // If insufficient allowance, approve first
             if (currentAllowance < requiredAmount) {
                 console.log('Insufficient allowance, requesting approval...');
@@ -602,7 +620,7 @@
 
                 // Approve a bit more than needed to avoid future approvals
                 const approveAmount = (requiredAmount * 2).toString();
-                const approvalSuccess = await approveTokens(address, approveAmount, signer);
+                const approvalSuccess = await approveTokens(address, approveAmount, signer, contractAddress);
 
                 isApproving = false;
 
@@ -618,11 +636,11 @@
 
             if (pendingTransaction === 'buy') {
                 isBuying = true;
-                success = await buyShares(assetIndex, amount.toString(), signer);
+                success = await buyShares(assetIndex, amount.toString(), signer, contractAddress);
                 isBuying = false;
             } else if (pendingTransaction === 'sell') {
                 isSelling = true;
-                success = await sellShares(assetIndex, amount.toString(), signer);
+                success = await sellShares(assetIndex, amount.toString(), signer, contractAddress);
                 isSelling = false;
             }
 
@@ -684,7 +702,7 @@
             const signer = await ethersProvider.getSigner();
 
             console.log('Redeeming payout...');
-            const success = await redeemPayout(signer);
+            const success = await redeemPayout(signer, contractAddress);
 
             if (success) {
                 console.log('Redeem successful');

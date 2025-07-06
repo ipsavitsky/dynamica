@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { contractABI } from './abi';
+import { getBaseTokenAddress } from './config';
 
 // 1e18 в BigNumber, adapted for ethers v6 (native BigInt)
 export const UNIT_DEC = 1000000000000000000n;
@@ -18,8 +19,8 @@ const ERC20_ABI = [
 let COLLATERAL_TOKEN_ADDRESS: string | null = null;
 let COLLATERAL_TOKEN_LOADING = false;
 
-// Market contract address (LMSRMarketMaker on Flare)
-export const MARKET_CONTRACT_ADDRESS = "0x1B6aAe0A32dD1A95C85E3DB9a8F1F30dF7d02FeF";
+// Default market contract address (LMSRMarketMaker on Flare)
+export const DEFAULT_MARKET_CONTRACT_ADDRESS = "0x1B6aAe0A32dD1A95C85E3DB9a8F1F30dF7d02FeF";
 
 // Define an interface for the contract to ensure type safety.
 export interface Contract {
@@ -106,64 +107,12 @@ async function retryContractCall<T>(
 }
 
 // Function to get collateral token address from market contract
-async function getCollateralTokenAddress(): Promise<string | null> {
-  if (COLLATERAL_TOKEN_ADDRESS) {
-    console.log('Using cached collateral token address:', COLLATERAL_TOKEN_ADDRESS);
-    return COLLATERAL_TOKEN_ADDRESS;
-  }
-  
-  // Prevent concurrent calls
-  if (COLLATERAL_TOKEN_LOADING) {
-    console.log('Token address fetch already in progress, waiting...');
-    // Wait for the ongoing fetch to complete
-    while (COLLATERAL_TOKEN_LOADING) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    return COLLATERAL_TOKEN_ADDRESS;
-  }
-  
-  try {
-    COLLATERAL_TOKEN_LOADING = true;
-    console.log('Fetching collateral token address from market contract:', MARKET_CONTRACT_ADDRESS);
-    
-    const result = await retryContractCall(async () => {
-      const provider = getContractProvider();
-      const marketContract = new ethers.Contract(MARKET_CONTRACT_ADDRESS, contractABI, provider);
-      
-      // First check if market contract exists
-      const marketCode = await provider.getCode(MARKET_CONTRACT_ADDRESS);
-      if (marketCode === '0x') {
-        throw new Error('Market contract not found');
-      }
-      
-      const tokenAddress = await marketContract.collateralToken();
-      
-      // Verify the token contract exists
-      const tokenCode = await provider.getCode(tokenAddress);
-      if (tokenCode === '0x') {
-        throw new Error('Token contract not found');
-      }
-      
-      console.log('Token contract code length:', tokenCode.length);
-      return tokenAddress;
-    });
-    
-    COLLATERAL_TOKEN_ADDRESS = result;
-    console.log('Retrieved collateral token address:', COLLATERAL_TOKEN_ADDRESS);
-    return COLLATERAL_TOKEN_ADDRESS;
-    
-  } catch (error) {
-    console.error('Failed to get collateral token address after retries:', error);
-    console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
-    
-    // Fallback to the MockToken address on Flare
-    const fallbackAddress = "0x710BE08F6eBCe17822B0b4766D878Fdf201281a8";
-    console.warn('Using fallback token address:', fallbackAddress);
-    COLLATERAL_TOKEN_ADDRESS = fallbackAddress;
-    return COLLATERAL_TOKEN_ADDRESS;
-  } finally {
-    COLLATERAL_TOKEN_LOADING = false;
-  }
+async function getCollateralTokenAddress(marketAddress?: string): Promise<string | null> {
+  // Always use the config token address for consistency
+  const configTokenAddress = getBaseTokenAddress();
+  console.log('Using base token address from config:', configTokenAddress);
+  COLLATERAL_TOKEN_ADDRESS = configTokenAddress;
+  return COLLATERAL_TOKEN_ADDRESS;
 }
 
 // Function to get token balance
@@ -297,11 +246,12 @@ export async function mintTokens(address: string, amount: string, signer: ethers
   }
 }
 
-export async function buyShares(assetIndex: number, amount: string, signer: ethers.Signer): Promise<boolean> {
+export async function buyShares(assetIndex: number, amount: string, signer: ethers.Signer, marketAddress?: string): Promise<boolean> {
   try {
     console.log('Buying shares for asset index:', assetIndex, 'amount:', amount);
     
-    const marketContract = new ethers.Contract(MARKET_CONTRACT_ADDRESS, contractABI, signer);
+    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
+    const marketContract = new ethers.Contract(contractAddress, contractABI, signer);
     
     // Get the unit decimals and outcome slot count
     const [unitDec, outcomeSlotCount] = await Promise.all([
@@ -336,11 +286,12 @@ export async function buyShares(assetIndex: number, amount: string, signer: ethe
   }
 }
 
-export async function sellShares(assetIndex: number, amount: string, signer: ethers.Signer): Promise<boolean> {
+export async function sellShares(assetIndex: number, amount: string, signer: ethers.Signer, marketAddress?: string): Promise<boolean> {
   try {
     console.log('Selling shares for asset index:', assetIndex, 'amount:', amount);
     
-    const marketContract = new ethers.Contract(MARKET_CONTRACT_ADDRESS, contractABI, signer);
+    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
+    const marketContract = new ethers.Contract(contractAddress, contractABI, signer);
     
     // Get the unit decimals and outcome slot count
     const [unitDec, outcomeSlotCount] = await Promise.all([
@@ -375,11 +326,12 @@ export async function sellShares(assetIndex: number, amount: string, signer: eth
   }
 }
 
-export async function redeemPayout(signer: ethers.Signer): Promise<boolean> {
+export async function redeemPayout(signer: ethers.Signer, marketAddress?: string): Promise<boolean> {
   try {
     console.log('Redeeming payout...');
     
-    const marketContract = new ethers.Contract(MARKET_CONTRACT_ADDRESS, contractABI, signer);
+    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
+    const marketContract = new ethers.Contract(contractAddress, contractABI, signer);
     
     const tx = await marketContract.redeemPayout();
     console.log('Redeem transaction sent:', tx.hash);
@@ -394,7 +346,7 @@ export async function redeemPayout(signer: ethers.Signer): Promise<boolean> {
   }
 }
 
-export async function checkAllowance(userAddress: string, provider?: ethers.Provider): Promise<{ allowance: string; decimals: number } | null> {
+export async function checkAllowance(userAddress: string, provider?: ethers.Provider, marketAddress?: string): Promise<{ allowance: string; decimals: number } | null> {
   try {
     const tokenAddress = await getCollateralTokenAddress();
     if (!tokenAddress) {
@@ -419,11 +371,12 @@ export async function checkAllowance(userAddress: string, provider?: ethers.Prov
     }
     
     const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, contractProvider);
+    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
     
     let allowance, decimals;
     
     try {
-      allowance = await tokenContract.allowance(userAddress, MARKET_CONTRACT_ADDRESS);
+      allowance = await tokenContract.allowance(userAddress, contractAddress);
     } catch (error) {
       console.error('Failed to get allowance:', error);
       allowance = 0n;
@@ -446,7 +399,7 @@ export async function checkAllowance(userAddress: string, provider?: ethers.Prov
   }
 }
 
-export async function approveTokens(address: string, amount: string, signer: ethers.Signer): Promise<boolean> {
+export async function approveTokens(address: string, amount: string, signer: ethers.Signer, marketAddress?: string): Promise<boolean> {
   try {
     console.log('Approving tokens for market contract...');
     
@@ -482,10 +435,11 @@ export async function approveTokens(address: string, amount: string, signer: eth
     }
     
     const approveAmount = ethers.parseUnits(amount, decimals);
+    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
     
     console.log('Approve amount:', approveAmount.toString());
     
-    const tx = await tokenContract.approve(MARKET_CONTRACT_ADDRESS, approveAmount);
+    const tx = await tokenContract.approve(contractAddress, approveAmount);
     console.log('Approval transaction sent:', tx.hash);
     
     await tx.wait();
@@ -498,9 +452,10 @@ export async function approveTokens(address: string, amount: string, signer: eth
   }
 }
 
-export async function getTransactionCost(assetIndex: number, amount: string, provider: ethers.Provider): Promise<{ cost: string; decimals: number } | null> {
+export async function getTransactionCost(assetIndex: number, amount: string, provider: ethers.Provider, marketAddress?: string): Promise<{ cost: string; decimals: number } | null> {
   try {
-    const marketContract = new ethers.Contract(MARKET_CONTRACT_ADDRESS, contractABI, provider);
+    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
+    const marketContract = new ethers.Contract(contractAddress, contractABI, provider);
     
     const [unitDec, outcomeSlotCount] = await Promise.all([
       marketContract.UNIT_DEC(),
