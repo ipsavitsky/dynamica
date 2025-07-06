@@ -68,7 +68,7 @@ export async function getDeltaJS(
 }
 
 // Function to get a reliable JSON RPC provider for contract calls
-function getContractProvider(): ethers.JsonRpcProvider {
+export function getContractProvider(): ethers.JsonRpcProvider {
   const infuraProjectId = import.meta.env.VITE_INFURA_PROJECT_ID;
   const rpcUrl = infuraProjectId 
     ? `https://sepolia.infura.io/v3/${infuraProjectId}`

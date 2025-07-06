@@ -11,6 +11,7 @@
     import { initializeAppKit } from "$lib/appkit";
     import { browser } from "$app/environment";
     import { getChartColors, getApexChartTheme, themeClasses } from "$lib/theme";
+    import { getContractProvider } from "$lib/utils";
 
     const contractAddress = "0x6d54f93e64c29A0D8FCF01039d1cbC701553c090";
 
@@ -65,7 +66,7 @@
 
     const getUnitDec = async () => {
         try {
-            const provider = new ethers.JsonRpcProvider("https://sepolia.infura.io/v3/b9794ad1ddf84dfb8c34d6bb5dca2001");
+            const provider = getContractProvider();
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
             const unitDec = await contract.UNIT_DEC();
             decimals = Math.round(Math.log10(Number(unitDec)));
@@ -80,7 +81,7 @@
             return;
         }
         try {
-            const provider = new ethers.JsonRpcProvider("https://sepolia.infura.io/v3/b9794ad1ddf84dfb8c34d6bb5dca2001");
+            const provider = getContractProvider();
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
 
             const outcomeSlotCount = await contract.outcomeSlotCount();
@@ -101,7 +102,7 @@
 
     const getMarginalPrices = async () => {
         try {
-            const provider = new ethers.JsonRpcProvider("https://sepolia.infura.io/v3/b9794ad1ddf84dfb8c34d6bb5dca2001");
+            const provider = getContractProvider();
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
             const prices = await Promise.all(
                 assetNames.map((_, i) => contract.calcMarginalPrice(i))
