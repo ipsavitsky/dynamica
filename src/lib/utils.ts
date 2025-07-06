@@ -18,8 +18,8 @@ const ERC20_ABI = [
 let COLLATERAL_TOKEN_ADDRESS: string | null = null;
 let COLLATERAL_TOKEN_LOADING = false;
 
-// Market contract address
-export const MARKET_CONTRACT_ADDRESS = "0x6d54f93e64c29A0D8FCF01039d1cbC701553c090";
+// Market contract address (LMSRMarketMaker on Flare)
+export const MARKET_CONTRACT_ADDRESS = "0x1B6aAe0A32dD1A95C85E3DB9a8F1F30dF7d02FeF";
 
 // Define an interface for the contract to ensure type safety.
 export interface Contract {
@@ -69,12 +69,14 @@ export async function getDeltaJS(
 
 // Function to get a reliable JSON RPC provider for contract calls
 export function getContractProvider(): ethers.JsonRpcProvider {
-  const infuraProjectId = import.meta.env.VITE_INFURA_PROJECT_ID;
-  const rpcUrl = infuraProjectId 
-    ? `https://sepolia.infura.io/v3/${infuraProjectId}`
-    : "https://sepolia.infura.io/v3/b9794ad1ddf84dfb8c34d6bb5dca2001"; // fallback
+  const tatumApiKey = import.meta.env.VITE_TATUM_API_KEY;
+  const rpcUrl = tatumApiKey 
+    ? `https://coston2-api.flare.network/ext/C/rpc?x-apikey=${tatumApiKey}`
+    : "https://coston2-api.flare.network/ext/C/rpc";
   
-  return new ethers.JsonRpcProvider(rpcUrl);
+  return new ethers.JsonRpcProvider(rpcUrl, 114, {
+    staticNetwork: ethers.Network.from(114)
+  });
 }
 
 // Retry mechanism for contract calls
@@ -154,8 +156,8 @@ async function getCollateralTokenAddress(): Promise<string | null> {
     console.error('Failed to get collateral token address after retries:', error);
     console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
     
-    // Fallback to the known working address as last resort
-    const fallbackAddress = "0x74569DcAb17C4de8A0C19272be91b095de0bdd38";
+    // Fallback to the MockToken address on Flare
+    const fallbackAddress = "0x710BE08F6eBCe17822B0b4766D878Fdf201281a8";
     console.warn('Using fallback token address:', fallbackAddress);
     COLLATERAL_TOKEN_ADDRESS = fallbackAddress;
     return COLLATERAL_TOKEN_ADDRESS;

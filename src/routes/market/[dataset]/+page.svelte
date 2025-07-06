@@ -13,7 +13,7 @@
     import { getChartColors, getApexChartTheme, themeClasses } from "$lib/theme";
     import { getContractProvider } from "$lib/utils";
 
-    const contractAddress = "0x6d54f93e64c29A0D8FCF01039d1cbC701553c090";
+    const contractAddress = "0x1B6aAe0A32dD1A95C85E3DB9a8F1F30dF7d02FeF";
 
 
     // Get the dataset name from the URL
