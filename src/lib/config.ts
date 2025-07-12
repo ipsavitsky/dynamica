@@ -1,4 +1,7 @@
-// Centralized configuration for prediction markets
+// Re-export from new configuration structure
+export * from './config/index';
+
+// Legacy types for backward compatibility
 export interface MarketConfig {
   address: string;
   name: string;
@@ -13,11 +16,9 @@ export interface PredictionMarketConfig {
   };
 }
 
+// Legacy configuration (deprecated - use new structure)
 export const PREDICTION_MARKET_CONFIG: PredictionMarketConfig = {
-  // Base token address for prediction markets
   baseTokenAddress: "0x61cE7ff8792faA0588AD69e22F9b88AAC6f409F7",
-  
-  // Market configurations
   markets: {
     crypto: {
       address: "0x01481e8f8a5480fCD7557102F48FeFdAA44b8279",
@@ -32,7 +33,7 @@ export const PREDICTION_MARKET_CONFIG: PredictionMarketConfig = {
   }
 };
 
-// Helper function to get market configuration by dataset name
+// Legacy helper functions (deprecated - use new structure)
 export function getMarketConfig(dataset: string): MarketConfig | null {
   if (dataset === 'crypto') {
     return PREDICTION_MARKET_CONFIG.markets.crypto;
@@ -42,13 +43,11 @@ export function getMarketConfig(dataset: string): MarketConfig | null {
   return null;
 }
 
-// Helper function to get market address by dataset name
 export function getMarketAddress(dataset: string): string | null {
   const config = getMarketConfig(dataset);
   return config ? config.address : null;
 }
 
-// Get base token address
 export function getBaseTokenAddress(): string {
   return PREDICTION_MARKET_CONFIG.baseTokenAddress;
 }

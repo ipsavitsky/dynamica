@@ -12,14 +12,26 @@
     import { browser } from "$app/environment";
     import { getChartColors, getApexChartTheme, themeClasses } from "$lib/theme";
     import { getContractProvider } from "$lib/utils";
-    import { getMarketAddress } from "$lib/config";
-
+    import { getMarketAddressByChain, getMarketConfigByChain } from "$lib/config";
+    import { currentChainId, currentChain } from "$lib/chainManager";
+    import { get } from "svelte/store";
 
     // Get the dataset name from the URL
     const { dataset } = $page.params;
     
-    // Get contract address for this dataset
-    const contractAddress = getMarketAddress(dataset) || "0x1B6aAe0A32dD1A95C85E3DB9a8F1F30dF7d02FeF";
+    // Get current chain ID
+    let chainId = $state(get(currentChainId));
+    let currentChainConfig = $state(get(currentChain));
+    
+    // Subscribe to chain changes
+    $effect(() => {
+        chainId = get(currentChainId);
+        currentChainConfig = get(currentChain);
+    });
+    
+    // Get contract address for this dataset and chain
+    let contractAddress = $derived(getMarketAddressByChain(chainId, dataset) || "0x1B6aAe0A32dD1A95C85E3DB9a8F1F30dF7d02FeF");
+    let marketConfig = $derived(getMarketConfigByChain(chainId, dataset));
 
     let assetNames = $state<string[]>([]);
     let dataRows = $state<number[][]>([]);
@@ -140,16 +152,60 @@
         }
     }
 
-    onMount(async () => {
+    $effect(() => {
+        // Watch for changes in amount and selectedAsset
+        amount;
+        selectedAsset;
+        getContractPrice();
+    });
+
+    // Watch for chain changes
+    $effect(() => {
+        if (chainId && dataset) {
+            // Reload data when chain changes
+            loadMarketData();
+        }
+    });
+
+    // Separate function to load market data
+    async function loadMarketData() {
         try {
             loading = true;
+            error = null;
+            
+            // Check if market is available on current chain
+            if (!marketConfig || !marketConfig.enabled || contractAddress === "0x0000000000000000000000000000000000000000") {
+                throw new Error(`Market "${dataset}" is not available on ${currentChainConfig?.name || 'this chain'}. Please switch to a chain where this market is deployed.`);
+            }
+            
             let data: DataPoint;
-            if (dataset === 'drivers') {
-                data = await dataService.getDriverData();
-            } else if (dataset === 'crypto') {
-                data = await dataService.getCryptoData();
+            
+            // Use the data source from market config
+            if (marketConfig && marketConfig.dataSource) {
+                // Fetch data based on the configured data source
+                if (marketConfig.dataSource === 'drivers') {
+                    data = await dataService.getDriverData();
+                } else if (marketConfig.dataSource === 'crypto') {
+                    data = await dataService.getCryptoData();
+                } else {
+                    // Fallback to dataset name for backward compatibility
+                    if (dataset === 'drivers') {
+                        data = await dataService.getDriverData();
+                    } else if (dataset === 'crypto') {
+                        data = await dataService.getCryptoData();
+                    } else {
+                        throw new Error(`Unknown data source: ${marketConfig.dataSource}`);
+                    }
+                }
             } else {
-                throw new Error(`Unknown dataset: ${dataset}`);
+                // Fallback to legacy behavior
+                if (dataset === 'drivers') {
+                    data = await dataService.getDriverData();
+                } else if (dataset === 'crypto') {
+                    data = await dataService.getCryptoData();
+                } else {
+                    throw new Error(`Unknown dataset: ${dataset}`);
+                }
             }
 
             assetNames = data.headers;
@@ -174,6 +230,10 @@
         } finally {
             loading = false;
         }
+    }
+
+    onMount(async () => {
+        await loadMarketData();
     });
 
     const formatYAxisLabel = (value: any) => {
@@ -182,13 +242,6 @@
         }
         return value;
     };
-
-    $effect(() => {
-        // Watch for changes in amount and selectedAsset
-        amount;
-        selectedAsset;
-        getContractPrice();
-    });
 
     let options: ApexOptions = $derived({
         colors: getChartColors(2, isDarkMode),
