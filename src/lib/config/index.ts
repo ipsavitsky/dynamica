@@ -9,28 +9,19 @@ export interface MultichainConfig {
   defaultChainId: number;
 }
 
-// Legacy compatibility exports
-import { getMarketConfig as getMarketConfigNew, getMarketAddress as getMarketAddressNew } from './markets';
+// Import chain-aware functions
+import { getMarketConfig, getMarketAddress } from './markets';
 import { getChainConfig, getDefaultChainConfig, getAvailableChains, DEFAULT_CHAIN_ID } from './chains';
-
-// Legacy function signatures for backward compatibility
-export function getMarketConfig(dataset: string): import('./markets').MarketConfig | null {
-  return getMarketConfigNew(DEFAULT_CHAIN_ID, dataset);
-}
-
-export function getMarketAddress(dataset: string): string | null {
-  return getMarketAddressNew(DEFAULT_CHAIN_ID, dataset);
-}
 
 export function getBaseTokenAddress(): string {
   const chainConfig = getDefaultChainConfig();
   return chainConfig.baseTokenAddress;
 }
 
-// New chain-aware functions
+// Export chain-aware functions with clear names
 export { 
-  getMarketConfigNew as getMarketConfigByChain,
-  getMarketAddressNew as getMarketAddressByChain,
+  getMarketConfig as getMarketConfigByChain,
+  getMarketAddress as getMarketAddressByChain,
   getChainConfig,
   getDefaultChainConfig,
   getAvailableChains,

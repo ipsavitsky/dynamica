@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 import { contractABI } from './abi';
-import { getBaseTokenAddress } from './config';
+import { getBaseTokenAddress } from './config/index';
 
 // 1e18 в BigNumber, adapted for ethers v6 (native BigInt)
 export const UNIT_DEC = 1000000000000000000n;
@@ -18,9 +18,6 @@ const ERC20_ABI = [
 // Collateral token address will be fetched dynamically from market contract
 let COLLATERAL_TOKEN_ADDRESS: string | null = null;
 let COLLATERAL_TOKEN_LOADING = false;
-
-// Default market contract address (LMSRMarketMaker on Flare)
-export const DEFAULT_MARKET_CONTRACT_ADDRESS = "0x1B6aAe0A32dD1A95C85E3DB9a8F1F30dF7d02FeF";
 
 // Define an interface for the contract to ensure type safety.
 export interface Contract {
@@ -246,12 +243,11 @@ export async function mintTokens(address: string, amount: string, signer: ethers
   }
 }
 
-export async function buyShares(assetIndex: number, amount: string, signer: ethers.Signer, marketAddress?: string): Promise<boolean> {
+export async function buyShares(assetIndex: number, amount: string, signer: ethers.Signer, marketAddress: string): Promise<boolean> {
   try {
     console.log('Buying shares for asset index:', assetIndex, 'amount:', amount);
     
-    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
-    const marketContract = new ethers.Contract(contractAddress, contractABI, signer);
+    const marketContract = new ethers.Contract(marketAddress, contractABI, signer);
     
     // Get the unit decimals and outcome slot count
     const [unitDec, outcomeSlotCount] = await Promise.all([
@@ -286,12 +282,11 @@ export async function buyShares(assetIndex: number, amount: string, signer: ethe
   }
 }
 
-export async function sellShares(assetIndex: number, amount: string, signer: ethers.Signer, marketAddress?: string): Promise<boolean> {
+export async function sellShares(assetIndex: number, amount: string, signer: ethers.Signer, marketAddress: string): Promise<boolean> {
   try {
     console.log('Selling shares for asset index:', assetIndex, 'amount:', amount);
     
-    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
-    const marketContract = new ethers.Contract(contractAddress, contractABI, signer);
+    const marketContract = new ethers.Contract(marketAddress, contractABI, signer);
     
     // Get the unit decimals and outcome slot count
     const [unitDec, outcomeSlotCount] = await Promise.all([
@@ -326,12 +321,11 @@ export async function sellShares(assetIndex: number, amount: string, signer: eth
   }
 }
 
-export async function redeemPayout(signer: ethers.Signer, marketAddress?: string): Promise<boolean> {
+export async function redeemPayout(signer: ethers.Signer, marketAddress: string): Promise<boolean> {
   try {
     console.log('Redeeming payout...');
     
-    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
-    const marketContract = new ethers.Contract(contractAddress, contractABI, signer);
+    const marketContract = new ethers.Contract(marketAddress, contractABI, signer);
     
     const tx = await marketContract.redeemPayout();
     console.log('Redeem transaction sent:', tx.hash);
@@ -371,12 +365,11 @@ export async function checkAllowance(userAddress: string, provider?: ethers.Prov
     }
     
     const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, contractProvider);
-    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
     
     let allowance, decimals;
     
     try {
-      allowance = await tokenContract.allowance(userAddress, contractAddress);
+      allowance = await tokenContract.allowance(userAddress, tokenAddress);
     } catch (error) {
       console.error('Failed to get allowance:', error);
       allowance = 0n;
@@ -435,28 +428,25 @@ export async function approveTokens(address: string, amount: string, signer: eth
     }
     
     const approveAmount = ethers.parseUnits(amount, decimals);
-    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
     
-    console.log('Approve amount:', approveAmount.toString());
-    
-    const tx = await tokenContract.approve(contractAddress, approveAmount);
-    console.log('Approval transaction sent:', tx.hash);
+    const tx = await tokenContract.approve(tokenAddress, approveAmount);
+    console.log('Approve transaction sent:', tx.hash);
     
     await tx.wait();
-    console.log('Approval transaction confirmed');
+    console.log('Approve transaction confirmed');
     
     return true;
   } catch (error) {
-    console.error('Failed to approve tokens:', error);
+    console.error('Error approving tokens:', error);
     return false;
   }
 }
 
-export async function getTransactionCost(assetIndex: number, amount: string, provider: ethers.Provider, marketAddress?: string): Promise<{ cost: string; decimals: number } | null> {
+export async function getTransactionCost(assetIndex: number, amount: string, provider: ethers.Provider, marketAddress: string): Promise<{ cost: string; decimals: number } | null> {
   try {
-    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
-    const marketContract = new ethers.Contract(contractAddress, contractABI, provider);
+    const marketContract = new ethers.Contract(marketAddress, contractABI, provider);
     
+    // Get the unit decimals and outcome slot count
     const [unitDec, outcomeSlotCount] = await Promise.all([
       marketContract.UNIT_DEC(),
       marketContract.outcomeSlotCount()
@@ -464,17 +454,17 @@ export async function getTransactionCost(assetIndex: number, amount: string, pro
     
     const decimals = Math.round(Math.log10(Number(unitDec)));
     
-    // Create delta array
+    // Create delta array with the amount for the selected asset
     const deltaOutcomeAmounts = new Array(Number(outcomeSlotCount)).fill(0);
     deltaOutcomeAmounts[assetIndex] = ethers.parseUnits(amount, decimals);
     
+    // Calculate the cost
     const netCost = await marketContract.calcNetCost(deltaOutcomeAmounts);
-    const absoluteCost = netCost < 0n ? -netCost : netCost;
-    const cost = ethers.formatUnits(absoluteCost, decimals);
+    const cost = ethers.formatUnits(netCost, decimals);
     
     return {
-      cost: parseFloat(cost).toFixed(4),
-      decimals
+      cost: Math.abs(parseFloat(cost)).toFixed(6),
+      decimals: decimals
     };
   } catch (error) {
     console.error('Error calculating transaction cost:', error);

@@ -12,7 +12,7 @@
     import { browser } from "$app/environment";
     import { getChartColors, getApexChartTheme, themeClasses } from "$lib/theme";
     import { getContractProvider } from "$lib/utils";
-    import { getMarketAddressByChain, getMarketConfigByChain } from "$lib/config";
+    import { getMarketAddressByChain, getMarketConfigByChain } from "$lib/config/index";
     import { currentChainId, currentChain } from "$lib/chainManager";
     import { get } from "svelte/store";
 
@@ -30,7 +30,7 @@
     });
     
     // Get contract address for this dataset and chain
-    let contractAddress = $derived(getMarketAddressByChain(chainId, dataset) || "0x1B6aAe0A32dD1A95C85E3DB9a8F1F30dF7d02FeF");
+    let contractAddress = $derived(getMarketAddressByChain(chainId, dataset));
     let marketConfig = $derived(getMarketConfigByChain(chainId, dataset));
 
     let assetNames = $state<string[]>([]);
@@ -81,6 +81,10 @@
 
     const getUnitDec = async () => {
         try {
+            if (!contractAddress) {
+                console.error("No contract address available");
+                return;
+            }
             const provider = getContractProvider();
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
             const unitDec = await contract.UNIT_DEC();
@@ -96,6 +100,10 @@
             return;
         }
         try {
+            if (!contractAddress) {
+                price = "Error";
+                return;
+            }
             const provider = getContractProvider();
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
 
@@ -117,6 +125,10 @@
 
     const getMarginalPrices = async () => {
         try {
+            if (!contractAddress) {
+                console.error("No contract address available");
+                return;
+            }
             const provider = getContractProvider();
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
             const prices = await Promise.all(
@@ -134,6 +146,12 @@
             
             const caipAddress = appKit.getCaipAddress();
             if (!caipAddress) {
+                userShares = new Array(assetNames.length).fill(0);
+                return;
+            }
+            
+            if (!contractAddress) {
+                console.error("No contract address available");
                 userShares = new Array(assetNames.length).fill(0);
                 return;
             }
@@ -174,7 +192,7 @@
             error = null;
             
             // Check if market is available on current chain
-            if (!marketConfig || !marketConfig.enabled || contractAddress === "0x0000000000000000000000000000000000000000") {
+            if (!marketConfig || !marketConfig.enabled) {
                 throw new Error(`Market "${dataset}" is not available on ${currentChainConfig?.name || 'this chain'}. Please switch to a chain where this market is deployed.`);
             }
             
@@ -600,6 +618,11 @@
         if (!appKit || isInvalid) return;
 
         try {
+            if (!contractAddress) {
+                console.error('No contract address available');
+                return;
+            }
+
             const provider = await getProvider();
             if (!provider) return;
 
@@ -624,6 +647,11 @@
 
     async function confirmTransaction() {
         if (!pendingTransaction || !transactionCost) return;
+
+        if (!contractAddress) {
+            console.error('No contract address available');
+            return;
+        }
 
         const caipAddress = appKit.getCaipAddress();
         if (!caipAddress) {
@@ -726,6 +754,11 @@
 
     async function handleRedeem() {
         if (!appKit || isRedeeming) return;
+
+        if (!contractAddress) {
+            console.error('No contract address available');
+            return;
+        }
 
         isRedeeming = true;
 

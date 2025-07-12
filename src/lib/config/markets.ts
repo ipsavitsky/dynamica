@@ -90,13 +90,4 @@ export function isMarketAvailable(chainId: number, marketId: string): boolean {
   
   // Check if market is enabled and has a valid address
   return config.enabled && config.address !== "0x0000000000000000000000000000000000000000";
-}
-
-// Legacy compatibility functions
-export function getMarketConfigLegacy(marketId: string): MarketConfig | null {
-  return getMarketConfig(114, marketId); // Default to Coston2
-}
-
-export function getMarketAddressLegacy(marketId: string): string | null {
-  return getMarketAddress(114, marketId); // Default to Coston2
 } 
