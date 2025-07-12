@@ -2,8 +2,10 @@
   import { onMount } from 'svelte';
   import { Card, A, Select, Button } from 'flowbite-svelte';
   import { currentChainId, currentChain, availableCurrentMarkets, availableChains, switchChain } from '$lib/chainManager';
-  import { isMarketAvailable } from '$lib/config/markets';
+  import { isMarketAvailable, getAvailableMarkets } from '$lib/config/markets';
+  import { switchWalletNetwork } from '$lib/appkit';
   import { get } from 'svelte/store';
+  import { browser } from '$app/environment';
 
   let selectedChainId = $state(get(currentChainId));
   let markets = $state(get(availableCurrentMarkets));
@@ -18,11 +20,44 @@
     currentChainConfig = get(currentChain);
   });
 
-  function handleChainChange(event: Event) {
+  // Sync with wallet state on page load
+  $effect(() => {
+    if (browser && window.ethereum) {
+      // Get current wallet chain and sync our state
+      window.ethereum.request({ method: 'eth_chainId' })
+        .then((chainId: string) => {
+          const decimalChainId = parseInt(chainId, 16);
+          if (decimalChainId !== selectedChainId) {
+            console.log('Syncing page state with wallet chain:', decimalChainId);
+            switchChain(decimalChainId);
+          }
+        })
+        .catch((error: any) => {
+          console.error('Failed to get wallet chain:', error);
+        });
+    }
+  });
+
+  async function handleChainChange(event: Event) {
     const target = event.target as HTMLSelectElement;
     const newChainId = parseInt(target.value);
+    
+    // Update the UI state first
     if (switchChain(newChainId)) {
       selectedChainId = newChainId;
+      
+      // Try to switch the wallet network as well
+      try {
+        const walletSwitched = await switchWalletNetwork(newChainId);
+        if (walletSwitched) {
+          console.log('Wallet network switched successfully');
+        } else {
+          console.log('Wallet network switch failed, but UI updated');
+        }
+      } catch (error) {
+        console.error('Error switching wallet network:', error);
+        // UI is still updated even if wallet switch fails
+      }
     }
   }
 
@@ -48,7 +83,7 @@
         <Select 
           id="chain-select"
           bind:value={selectedChainId} 
-          on:change={(event) => handleChainChange(event)}
+          onchange={(event) => handleChainChange(event)}
           class="theme-card theme-border theme-text"
         >
           {#each chains as chain}
@@ -127,7 +162,7 @@
           <div class="p-4 rounded-lg theme-card theme-border">
             <h4 class="font-semibold theme-text">{chain.name}</h4>
             <p class="text-sm theme-text-secondary">
-              {get(availableCurrentMarkets).filter(m => isMarketAvailable(chain.id, m.id)).length} markets available
+              {getAvailableMarkets(chain.id).filter(m => m.enabled).length} markets available
             </p>
             <p class="text-xs theme-text-secondary">
               {chain.nativeCurrency.symbol}

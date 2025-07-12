@@ -11,7 +11,7 @@
     import { initializeAppKit } from "$lib/appkit";
     import { browser } from "$app/environment";
     import { getChartColors, getApexChartTheme, themeClasses } from "$lib/theme";
-    import { getContractProvider } from "$lib/utils";
+    import { getContractProvider, getChainProvider } from "$lib/utils";
     import { getMarketAddressByChain, getMarketConfigByChain } from "$lib/config/index";
     import { currentChainId, currentChain } from "$lib/chainManager";
     import { get } from "svelte/store";
@@ -85,7 +85,7 @@
                 console.error("No contract address available");
                 return;
             }
-            const provider = getContractProvider();
+            const provider = getChainProvider(chainId);
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
             const unitDec = await contract.UNIT_DEC();
             decimals = Math.round(Math.log10(Number(unitDec)));
@@ -104,7 +104,7 @@
                 price = "Error";
                 return;
             }
-            const provider = getContractProvider();
+            const provider = getChainProvider(chainId);
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
 
             const outcomeSlotCount = await contract.outcomeSlotCount();
@@ -129,7 +129,7 @@
                 console.error("No contract address available");
                 return;
             }
-            const provider = getContractProvider();
+            const provider = getChainProvider(chainId);
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
             const prices = await Promise.all(
                 assetNames.map((_, i) => contract.calcMarginalPrice(i))
@@ -157,7 +157,7 @@
             }
             
             const userAddress = caipAddress.split(':')[2];
-            const provider = getContractProvider();
+            const provider = getChainProvider(chainId);
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
             
             const shares = await Promise.all(

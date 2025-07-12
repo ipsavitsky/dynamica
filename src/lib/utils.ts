@@ -68,6 +68,8 @@ export async function getDeltaJS(
 // Function to get a reliable JSON RPC provider for contract calls
 export function getContractProvider(): ethers.JsonRpcProvider {
   const tatumApiKey = import.meta.env.VITE_TATUM_API_KEY;
+  
+  // For now, default to Coston2. In the future, this should be chain-aware
   const rpcUrl = tatumApiKey 
     ? `https://coston2-api.flare.network/ext/C/rpc?x-apikey=${tatumApiKey}`
     : "https://coston2-api.flare.network/ext/C/rpc";
@@ -75,6 +77,42 @@ export function getContractProvider(): ethers.JsonRpcProvider {
   return new ethers.JsonRpcProvider(rpcUrl, 114, {
     staticNetwork: ethers.Network.from(114)
   });
+}
+
+// Function to get a provider for a specific chain
+export function getChainProvider(chainId: number): ethers.JsonRpcProvider {
+  const tatumApiKey = import.meta.env.VITE_TATUM_API_KEY;
+  
+  switch (chainId) {
+    case 114: // Coston2 Testnet
+      const coston2Url = tatumApiKey 
+        ? `https://coston2-api.flare.network/ext/C/rpc?x-apikey=${tatumApiKey}`
+        : "https://coston2-api.flare.network/ext/C/rpc";
+      return new ethers.JsonRpcProvider(coston2Url, 114, {
+        staticNetwork: ethers.Network.from(114)
+      });
+    
+    case 296: // Hedera Testnet
+      const hederaUrl = "https://testnet.hashio.io/api";
+      return new ethers.JsonRpcProvider(hederaUrl, 296, {
+        staticNetwork: ethers.Network.from(296)
+      });
+    
+    case 545: // Flow EVM Testnet
+      const flowUrl = "https://testnet.evm.nodes.onflow.org";
+      return new ethers.JsonRpcProvider(flowUrl, 545, {
+        staticNetwork: ethers.Network.from(545)
+      });
+    
+    default:
+      // Fallback to Coston2
+      const fallbackUrl = tatumApiKey 
+        ? `https://coston2-api.flare.network/ext/C/rpc?x-apikey=${tatumApiKey}`
+        : "https://coston2-api.flare.network/ext/C/rpc";
+      return new ethers.JsonRpcProvider(fallbackUrl, 114, {
+        staticNetwork: ethers.Network.from(114)
+      });
+  }
 }
 
 // Retry mechanism for contract calls
@@ -104,18 +142,18 @@ async function retryContractCall<T>(
 }
 
 // Function to get collateral token address from market contract
-async function getCollateralTokenAddress(marketAddress?: string): Promise<string | null> {
-  // Always use the config token address for consistency
-  const configTokenAddress = getBaseTokenAddress();
-  console.log('Using base token address from config:', configTokenAddress);
+async function getCollateralTokenAddress(chainId?: number): Promise<string | null> {
+  // Get the base token address for the specific chain
+  const configTokenAddress = getBaseTokenAddress(chainId);
+  console.log('Using base token address from config for chain', chainId, ':', configTokenAddress);
   COLLATERAL_TOKEN_ADDRESS = configTokenAddress;
   return COLLATERAL_TOKEN_ADDRESS;
 }
 
 // Function to get token balance
-export async function getTokenBalance(address: string, provider?: ethers.Provider): Promise<{ balance: string; symbol: string } | null> {
+export async function getTokenBalance(address: string, chainId?: number, provider?: ethers.Provider): Promise<{ balance: string; symbol: string } | null> {
   try {
-    const tokenAddress = await getCollateralTokenAddress();
+    const tokenAddress = await getCollateralTokenAddress(chainId);
     if (!tokenAddress) {
       console.warn('Could not get collateral token address');
       return {
@@ -126,9 +164,10 @@ export async function getTokenBalance(address: string, provider?: ethers.Provide
     
     console.log('Creating contract with address:', tokenAddress);
     console.log('User address:', address);
+    console.log('Chain ID:', chainId);
     
-    // Use dedicated provider for contract calls
-    const contractProvider = provider || getContractProvider();
+    // Use chain-aware provider for contract calls
+    const contractProvider = provider || (chainId ? getChainProvider(chainId) : getContractProvider());
     
     // First check if contract exists by getting its bytecode
     const code = await contractProvider.getCode(tokenAddress);

@@ -13,8 +13,12 @@ export interface MultichainConfig {
 import { getMarketConfig, getMarketAddress } from './markets';
 import { getChainConfig, getDefaultChainConfig, getAvailableChains, DEFAULT_CHAIN_ID } from './chains';
 
-export function getBaseTokenAddress(): string {
-  const chainConfig = getDefaultChainConfig();
+export function getBaseTokenAddress(chainId?: number): string {
+  const chainConfig = chainId ? getChainConfig(chainId) : getDefaultChainConfig();
+  if (!chainConfig) {
+    console.error(`Chain ${chainId} not found, using default chain`);
+    return getDefaultChainConfig().baseTokenAddress;
+  }
   return chainConfig.baseTokenAddress;
 }
 

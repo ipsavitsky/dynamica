@@ -30,29 +30,20 @@ export const CHAIN_MARKETS: Record<number, Record<string, MarketConfig>> = {
       enabled: true
     }
   },
-  // Ethereum Mainnet - Placeholder markets
-  1: {
-    'drivers': {
-      id: 'drivers',
-      address: "0x0000000000000000000000000000000000000000", // Placeholder
-      name: "Formula 1 Drivers Market",
-      description: "Prediction market for Formula 1 driver performance",
-      dataSource: 'drivers',
-      competitors: 'drivers',
-      enabled: false // Not deployed yet
-    },
+  // Hedera Testnet - Only crypto market
+  296: {
     'crypto': {
       id: 'crypto',
-      address: "0x0000000000000000000000000000000000000000", // Placeholder
+      address: "0x1d78d565c900F82CdF7a397a2a8D06c4B6335309",
       name: "Cryptocurrency Market",
       description: "Prediction market for cryptocurrency price movements",
       dataSource: 'crypto',
       competitors: 'crypto',
-      enabled: false // Not deployed yet
+      enabled: true
     }
   },
-  // Polygon - Only crypto market
-  137: {
+  // Flow EVM Testnet - Placeholder (no markets deployed yet)
+  545: {
     'crypto': {
       id: 'crypto',
       address: "0x0000000000000000000000000000000000000000", // Placeholder
