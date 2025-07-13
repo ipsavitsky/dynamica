@@ -11,18 +11,31 @@
     import { initializeAppKit } from "$lib/appkit";
     import { browser } from "$app/environment";
     import { getChartColors, getApexChartTheme, themeClasses } from "$lib/theme";
-    import { getContractProvider } from "$lib/utils";
-    import { getMarketAddress } from "$lib/config";
-
+    import { getContractProvider, getChainProvider } from "$lib/utils";
+    import { getMarketAddressByChain, getMarketConfigByChain } from "$lib/config/index";
+    import { currentChainId, currentChain } from "$lib/chainManager";
+    import { get } from "svelte/store";
 
     // Get the dataset name from the URL
     const { dataset } = $page.params;
     
-    // Get contract address for this dataset
-    const contractAddress = getMarketAddress(dataset) || "0x1B6aAe0A32dD1A95C85E3DB9a8F1F30dF7d02FeF";
+    // Get current chain ID
+    let chainId = $state(get(currentChainId));
+    let currentChainConfig = $state(get(currentChain));
+    
+    // Subscribe to chain changes
+    $effect(() => {
+        chainId = get(currentChainId);
+        currentChainConfig = get(currentChain);
+    });
+    
+    // Get contract address for this dataset and chain
+    let contractAddress = $derived(getMarketAddressByChain(chainId, dataset));
+    let marketConfig = $derived(getMarketConfigByChain(chainId, dataset));
 
     let assetNames = $state<string[]>([]);
     let dataRows = $state<number[][]>([]);
+    let dataDates = $state<Date[]>([]); // Add dates state
     let currentAllocationData = $state<number[]>([]);
     let loading = $state(true);
     let error = $state<string | null>(null);
@@ -35,7 +48,7 @@
 
     let amount = $state(1);
     let decimals = $state(18); // Default to 18, will be updated from contract
-    let combinedMode = $state(true); // Toggle between combined and separate chart modes
+    let combinedMode = $state(false); // Toggle between combined and separate chart modes - default to separate charts
     let isDarkMode = $state(false);
 
     let isInvalid = $derived(amount <= 0);
@@ -48,6 +61,7 @@
     let transactionCost = $state<string | null>(null);
     let showConfirmation = $state(false);
     let pendingTransaction = $state<'buy' | 'sell' | null>(null);
+    let showMarketNotResolved = $state(false); // Add modal state for market not resolved
 
     let appKit: any = null;
 
@@ -69,7 +83,11 @@
 
     const getUnitDec = async () => {
         try {
-            const provider = getContractProvider();
+            if (!contractAddress) {
+                console.error("No contract address available");
+                return;
+            }
+            const provider = getChainProvider(chainId);
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
             const unitDec = await contract.UNIT_DEC();
             decimals = Math.round(Math.log10(Number(unitDec)));
@@ -84,7 +102,11 @@
             return;
         }
         try {
-            const provider = getContractProvider();
+            if (!contractAddress) {
+                price = "Error";
+                return;
+            }
+            const provider = getChainProvider(chainId);
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
 
             const outcomeSlotCount = await contract.outcomeSlotCount();
@@ -105,7 +127,11 @@
 
     const getMarginalPrices = async () => {
         try {
-            const provider = getContractProvider();
+            if (!contractAddress) {
+                console.error("No contract address available");
+                return;
+            }
+            const provider = getChainProvider(chainId);
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
             const prices = await Promise.all(
                 assetNames.map((_, i) => contract.calcMarginalPrice(i))
@@ -126,8 +152,14 @@
                 return;
             }
             
+            if (!contractAddress) {
+                console.error("No contract address available");
+                userShares = new Array(assetNames.length).fill(0);
+                return;
+            }
+            
             const userAddress = caipAddress.split(':')[2];
-            const provider = getContractProvider();
+            const provider = getChainProvider(chainId);
             const contract = new ethers.Contract(contractAddress, contractABI, provider);
             
             const shares = await Promise.all(
@@ -140,20 +172,65 @@
         }
     }
 
-    onMount(async () => {
+    $effect(() => {
+        // Watch for changes in amount and selectedAsset
+        amount;
+        selectedAsset;
+        getContractPrice();
+    });
+
+    // Watch for chain changes
+    $effect(() => {
+        if (chainId && dataset) {
+            // Reload data when chain changes
+            loadMarketData();
+        }
+    });
+
+    // Separate function to load market data
+    async function loadMarketData() {
         try {
             loading = true;
+            error = null;
+            
+            // Check if market is available on current chain
+            if (!marketConfig || !marketConfig.enabled) {
+                throw new Error(`Market "${dataset}" is not available on ${currentChainConfig?.name || 'this chain'}. Please switch to a chain where this market is deployed.`);
+            }
+            
             let data: DataPoint;
+            
+            // Use the data source from market config
+            if (marketConfig && marketConfig.dataSource) {
+                // Fetch data based on the configured data source
+                if (marketConfig.dataSource === 'drivers') {
+                    data = await dataService.getDriverData();
+                } else if (marketConfig.dataSource === 'crypto') {
+                    data = await dataService.getCryptoData();
+                } else {
+                    // Fallback to dataset name for backward compatibility
+                    if (dataset === 'drivers') {
+                        data = await dataService.getDriverData();
+                    } else if (dataset === 'crypto') {
+                        data = await dataService.getCryptoData();
+                    } else {
+                        throw new Error(`Unknown data source: ${marketConfig.dataSource}`);
+                    }
+                }
+            } else {
+                // Fallback to legacy behavior
             if (dataset === 'drivers') {
                 data = await dataService.getDriverData();
             } else if (dataset === 'crypto') {
                 data = await dataService.getCryptoData();
             } else {
                 throw new Error(`Unknown dataset: ${dataset}`);
+                }
             }
 
             assetNames = data.headers;
             dataRows = data.rows;
+            dataDates = data.dates || []; // Assign dates with fallback
             marginalPrices = new Array(assetNames.length).fill(0);
             userShares = new Array(assetNames.length).fill(0);
             if (data.rows.length > 0) {
@@ -174,6 +251,10 @@
         } finally {
             loading = false;
         }
+    }
+
+    onMount(async () => {
+        await loadMarketData();
     });
 
     const formatYAxisLabel = (value: any) => {
@@ -182,13 +263,6 @@
         }
         return value;
     };
-
-    $effect(() => {
-        // Watch for changes in amount and selectedAsset
-        amount;
-        selectedAsset;
-        getContractPrice();
-    });
 
     let options: ApexOptions = $derived({
         colors: getChartColors(2, isDarkMode),
@@ -346,7 +420,9 @@
             },
         },
         xaxis: {
-            categories: dataRows.map((_: number[], index: number) => `Event ${index + 1}`),
+            categories: dataDates.length > 0 
+                ? dataDates.map(date => date.toLocaleDateString())
+                : dataRows.map((_: number[], index: number) => `Event ${index + 1}`),
             labels: {
                 show: false,
                 style: {
@@ -440,7 +516,9 @@
                     },
                 },
                 xaxis: {
-                    categories: dataRows.map((_: number[], index: number) => `Event ${index + 1}`),
+                    categories: dataDates.length > 0 
+                        ? dataDates.map(date => date.toLocaleDateString())
+                        : dataRows.map((_: number[], index: number) => `Event ${index + 1}`),
                     labels: {
                         show: false,
                         style: {
@@ -547,6 +625,11 @@
         if (!appKit || isInvalid) return;
 
         try {
+            if (!contractAddress) {
+                console.error('No contract address available');
+                return;
+            }
+
             const provider = await getProvider();
             if (!provider) return;
 
@@ -572,6 +655,11 @@
     async function confirmTransaction() {
         if (!pendingTransaction || !transactionCost) return;
 
+        if (!contractAddress) {
+            console.error('No contract address available');
+            return;
+        }
+
         const caipAddress = appKit.getCaipAddress();
         if (!caipAddress) {
             console.log('Wallet not connected');
@@ -588,7 +676,7 @@
             const signer = await ethersProvider.getSigner();
 
             // Check allowance first
-            const allowanceInfo = await checkAllowance(address, ethersProvider, contractAddress);
+            const allowanceInfo = await checkAllowance(address, ethersProvider, contractAddress, chainId);
             if (!allowanceInfo) return;
 
             const requiredAmount = parseFloat(transactionCost);
@@ -598,7 +686,7 @@
             console.log('Current allowance:', currentAllowance);
 
             // Check token balance first
-            const tokenBalance = await getTokenBalance(address, ethersProvider);
+            const tokenBalance = await getTokenBalance(address, chainId, ethersProvider);
             if (!tokenBalance) {
                 console.error('Could not get token balance');
                 return;
@@ -620,7 +708,7 @@
 
                 // Approve a bit more than needed to avoid future approvals
                 const approveAmount = (requiredAmount * 2).toString();
-                const approvalSuccess = await approveTokens(address, approveAmount, signer, contractAddress);
+                const approvalSuccess = await approveTokens(address, approveAmount, signer, contractAddress, chainId);
 
                 isApproving = false;
 
@@ -674,6 +762,11 @@
     async function handleRedeem() {
         if (!appKit || isRedeeming) return;
 
+        if (!contractAddress) {
+            console.error('No contract address available');
+            return;
+        }
+
         isRedeeming = true;
 
         try {
@@ -707,9 +800,12 @@
             if (success) {
                 console.log('Redeem successful');
                 await Promise.all([getContractPrice(), getMarginalPrices(), getUserShares()]);
+            } else {
+                showMarketNotResolved = true; // Show the modal if redeem fails
             }
         } catch (error) {
             console.error('Error during redeem:', error);
+            showMarketNotResolved = true; // Show the modal if redeem fails due to error
         } finally {
             isRedeeming = false;
         }
@@ -979,6 +1075,58 @@
             </div>
         </div>
     {/if}
+</Modal>
+
+<!-- Market Not Resolved Modal -->
+<Modal bind:open={showMarketNotResolved} title="Market Not Resolved">
+    <div class="space-y-6">
+        <div class="text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900/20 mb-4">
+                <svg class="h-6 w-6 text-orange-600 dark:text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                Market Not Resolved
+            </h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+                The market for this dataset on the current chain is not yet resolved.
+            </p>
+        </div>
+        
+        <div class="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-orange-800 dark:text-orange-200">
+                        What this means:
+                    </h3>
+                    <div class="mt-2 text-sm text-orange-700 dark:text-orange-300">
+                        <ul class="list-disc list-inside space-y-1">
+                            <li>The market outcome has not been determined yet</li>
+                            <li>You may need to wait for the market to resolve</li>
+                            <li>Ensure you're on the correct chain</li>
+                            <li>Check if the market contract is properly deployed</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex justify-end space-x-3">
+            <Button 
+                onclick={() => showMarketNotResolved = false}
+                color="alternative"
+                size="sm"
+            >
+                Close
+            </Button>
+        </div>
+    </div>
 </Modal>
 
 <style>

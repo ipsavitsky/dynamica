@@ -4,6 +4,8 @@
 	import { initializeAppKit } from '$lib/appkit';
 	import { getTokenBalance, mintTokens } from '$lib/utils';
 	import { browser } from '$app/environment';
+	import { currentChainId, switchChain } from '$lib/chainManager';
+	import { get } from 'svelte/store';
 	import { ethers } from 'ethers';
 	import { onMount } from 'svelte';
 
@@ -25,6 +27,41 @@
 		} else {
 			darkMode = false;
 			document.documentElement.classList.remove('dark');
+		}
+
+		// Listen for wallet network changes
+		if (browser && window.ethereum) {
+			// Sync initial wallet state
+			syncWalletState();
+			
+			window.ethereum.on('chainChanged', (chainId: string) => {
+				console.log('Wallet chain changed to:', chainId);
+				// Convert hex chainId to decimal
+				const decimalChainId = parseInt(chainId, 16);
+				console.log('Decimal chain ID:', decimalChainId);
+				
+				// Update our state to match the wallet
+				switchChain(decimalChainId);
+				
+				// Refetch balance if user is connected
+				if (address) {
+					fetchTokenBalance(address);
+				}
+			});
+
+			// Listen for account changes
+			window.ethereum.on('accountsChanged', (accounts: string[]) => {
+				console.log('Wallet accounts changed:', accounts);
+				if (accounts.length > 0) {
+					// Update address and refetch balance
+					address = accounts[0];
+					fetchTokenBalance(accounts[0]);
+				} else {
+					// User disconnected
+					address = null;
+					tokenBalance = null;
+				}
+			});
 		}
 	});
 
@@ -51,6 +88,15 @@
 			});
 
 			return unsubscribe;
+		}
+	});
+
+	// Refetch balance when chain changes
+	$effect(() => {
+		if (address && appKit) {
+			const chainId = get(currentChainId);
+			console.log('Chain changed to:', chainId, 'refetching balance');
+			fetchTokenBalance(address);
 		}
 	});
 
@@ -105,8 +151,12 @@
 				return;
 			}
 
+			// Get current chain ID
+			const chainId = get(currentChainId);
+			console.log('Current chain ID for balance fetch:', chainId);
+
 			console.log('Fetching token balance with dedicated provider');
-			const balance = await getTokenBalance(userAddress);
+			const balance = await getTokenBalance(userAddress, chainId);
 			console.log('Token balance fetched:', balance);
 			tokenBalance = balance;
 		} catch (error) {
@@ -138,7 +188,8 @@
 			const signer = await ethersProvider.getSigner();
 
 			console.log('Signer created, minting 10 tokens...');
-			const success = await mintTokens(address, '10', signer);
+			const chainId = get(currentChainId);
+			const success = await mintTokens(address, '10', signer, chainId);
 
 			if (success) {
 				console.log('Mint successful, refreshing balance...');
@@ -154,6 +205,29 @@
 		}
 	}
 
+
+	async function syncWalletState() {
+		if (!browser || !window.ethereum) return;
+		
+		try {
+			// Get current chain ID from wallet
+			const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+			const decimalChainId = parseInt(chainId, 16);
+			console.log('Syncing wallet state - current chain:', decimalChainId);
+			
+			// Update our state to match the wallet
+			switchChain(decimalChainId);
+			
+			// Get current accounts
+			const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+			if (accounts.length > 0) {
+				address = accounts[0];
+				fetchTokenBalance(accounts[0]);
+			}
+		} catch (error) {
+			console.error('Failed to sync wallet state:', error);
+		}
+	}
 
 	function formatAddress(addr: string) {
 		return `${addr.slice(0, 6)}...${addr.slice(-4)}`;

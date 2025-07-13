@@ -1,35 +1,34 @@
 import { browser } from '$app/environment'
 import { createAppKit } from '@reown/appkit'
 import { EthersAdapter } from '@reown/appkit-adapter-ethers'
-import { mainnet, defineChain } from '@reown/appkit/networks'
-
-// Define Coston2 testnet configuration
-const coston2Network = defineChain({
-	id: 114,
-	caipNetworkId: 'eip155:114',
-	chainNamespace: 'eip155',
-	name: 'Coston2 Testnet',
-	nativeCurrency: {
-		decimals: 18,
-		name: 'Coston2 Flare',
-		symbol: 'C2FLR',
-	},
-	rpcUrls: {
-		default: {
-			http: ['https://coston-api.flare.network/ext/C/rpc'],
-		},
-	},
-	blockExplorers: {
-		default: {
-			name: 'Coston2 Explorer',
-			url: 'https://coston2-explorer.flare.network',
-		},
-	},
-});
+import { defineChain } from '@reown/appkit/networks'
+import { getAvailableChains, getDefaultChainConfig } from './config/chains'
 
 // Define a type for the AppKit instance to be used throughout the app
 export type AppKit = ReturnType<typeof createAppKit>;
 let appKit: AppKit | undefined = undefined;
+
+// Convert our chain config to Reown AppKit chain format
+function createReownChain(chainConfig: any) {
+  return defineChain({
+    id: chainConfig.id,
+    caipNetworkId: `eip155:${chainConfig.id}`,
+    chainNamespace: 'eip155',
+    name: chainConfig.name,
+    nativeCurrency: chainConfig.nativeCurrency,
+    rpcUrls: {
+      default: {
+        http: chainConfig.rpcUrls.default.http,
+      },
+    },
+    blockExplorers: chainConfig.blockExplorers ? {
+      default: {
+        name: chainConfig.blockExplorers.default.name,
+        url: chainConfig.blockExplorers.default.url,
+      },
+    } : undefined,
+  });
+}
 
 /**
  * Initializes and returns a singleton instance of the AppKit client.
@@ -46,16 +45,30 @@ export function initializeAppKit() {
 			throw new Error('VITE_REOWN_PROJECT_ID is not set in your .env file');
 		}
 
-		const networks = [coston2Network, mainnet] as [typeof coston2Network, typeof mainnet];
+		// Get all available chains from our configuration
+		const availableChains = getAvailableChains();
+		
+		// Convert to Reown AppKit format and ensure we have at least one chain
+		const reownChains = availableChains.map(createReownChain);
+		
+		if (reownChains.length === 0) {
+			throw new Error('No chains configured');
+		}
+		
+		// Get default chain
+		const defaultChain = createReownChain(getDefaultChainConfig());
+		
+		console.log('AppKit chains:', reownChains);
+		console.log('Default chain:', defaultChain);
 
 		// Create adapter
 		const ethersAdapter = new EthersAdapter();
 
-		// Initialize AppKit
+		// Initialize AppKit with all configured chains
 		appKit = createAppKit({
 			adapters: [ethersAdapter],
-			networks: [...networks],
-			defaultNetwork: coston2Network,
+			networks: reownChains,
+			defaultNetwork: defaultChain,
 			projectId,
 			metadata: {
 				name: 'Market DApp',
@@ -69,5 +82,79 @@ export function initializeAppKit() {
 		});
 
 		return appKit;
+	}
+}
+
+/**
+ * Get AppKit instance for a specific chain
+ */
+export function getAppKitForChain(chainId: number): AppKit | undefined {
+	if (!appKit) {
+		appKit = initializeAppKit();
+	}
+	
+	// Verify the chain is supported
+	const availableChains = getAvailableChains();
+	const chainConfig = availableChains.find(chain => chain.id === chainId);
+	if (!chainConfig) {
+		console.error(`Chain ${chainId} is not supported`);
+		return undefined;
+	}
+	
+	return appKit;
+}
+
+/**
+ * Switch the wallet to a specific network using window.ethereum
+ */
+export async function switchWalletNetwork(chainId: number): Promise<boolean> {
+	if (!browser || !window.ethereum) {
+		console.error('No wallet available');
+		return false;
+	}
+
+	// Get the chain configuration
+	const availableChains = getAvailableChains();
+	const chainConfig = availableChains.find(chain => chain.id === chainId);
+	if (!chainConfig) {
+		console.error(`Chain ${chainId} not found in configuration`);
+		return false;
+	}
+
+	try {
+		// Try to switch network using wallet_switchEthereumChain
+		await window.ethereum.request({
+			method: 'wallet_switchEthereumChain',
+			params: [{ chainId: `0x${chainId.toString(16)}` }],
+		});
+		
+		console.log(`Successfully switched wallet to ${chainConfig.name}`);
+		return true;
+	} catch (switchError: any) {
+		// This error code indicates that the chain has not been added to MetaMask
+		if (switchError.code === 4902) {
+			try {
+				// Add the chain to MetaMask
+				await window.ethereum.request({
+					method: 'wallet_addEthereumChain',
+					params: [{
+						chainId: `0x${chainId.toString(16)}`,
+						chainName: chainConfig.name,
+						nativeCurrency: chainConfig.nativeCurrency,
+						rpcUrls: chainConfig.rpcUrls.default.http,
+						blockExplorerUrls: chainConfig.blockExplorers ? [chainConfig.blockExplorers.default.url] : undefined,
+					}],
+				});
+				
+				console.log(`Successfully added and switched to ${chainConfig.name}`);
+				return true;
+			} catch (addError) {
+				console.error('Failed to add chain to wallet:', addError);
+				return false;
+			}
+		} else {
+			console.error('Failed to switch wallet network:', switchError);
+			return false;
+		}
 	}
 }

@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 import { contractABI } from './abi';
-import { getBaseTokenAddress } from './config';
+import { getBaseTokenAddress } from './config/index';
 
 // 1e18 в BigNumber, adapted for ethers v6 (native BigInt)
 export const UNIT_DEC = 1000000000000000000n;
@@ -18,9 +18,6 @@ const ERC20_ABI = [
 // Collateral token address will be fetched dynamically from market contract
 let COLLATERAL_TOKEN_ADDRESS: string | null = null;
 let COLLATERAL_TOKEN_LOADING = false;
-
-// Default market contract address (LMSRMarketMaker on Flare)
-export const DEFAULT_MARKET_CONTRACT_ADDRESS = "0x1B6aAe0A32dD1A95C85E3DB9a8F1F30dF7d02FeF";
 
 // Define an interface for the contract to ensure type safety.
 export interface Contract {
@@ -71,6 +68,8 @@ export async function getDeltaJS(
 // Function to get a reliable JSON RPC provider for contract calls
 export function getContractProvider(): ethers.JsonRpcProvider {
   const tatumApiKey = import.meta.env.VITE_TATUM_API_KEY;
+  
+  // For now, default to Coston2. In the future, this should be chain-aware
   const rpcUrl = tatumApiKey 
     ? `https://coston2-api.flare.network/ext/C/rpc?x-apikey=${tatumApiKey}`
     : "https://coston2-api.flare.network/ext/C/rpc";
@@ -78,6 +77,42 @@ export function getContractProvider(): ethers.JsonRpcProvider {
   return new ethers.JsonRpcProvider(rpcUrl, 114, {
     staticNetwork: ethers.Network.from(114)
   });
+}
+
+// Function to get a provider for a specific chain
+export function getChainProvider(chainId: number): ethers.JsonRpcProvider {
+  const tatumApiKey = import.meta.env.VITE_TATUM_API_KEY;
+  
+  switch (chainId) {
+    case 114: // Coston2 Testnet
+      const coston2Url = tatumApiKey 
+        ? `https://coston2-api.flare.network/ext/C/rpc?x-apikey=${tatumApiKey}`
+        : "https://coston2-api.flare.network/ext/C/rpc";
+      return new ethers.JsonRpcProvider(coston2Url, 114, {
+        staticNetwork: ethers.Network.from(114)
+      });
+    
+    case 296: // Hedera Testnet
+      const hederaUrl = "https://testnet.hashio.io/api";
+      return new ethers.JsonRpcProvider(hederaUrl, 296, {
+        staticNetwork: ethers.Network.from(296)
+      });
+    
+    case 545: // Flow EVM Testnet
+      const flowUrl = "https://testnet.evm.nodes.onflow.org";
+      return new ethers.JsonRpcProvider(flowUrl, 545, {
+        staticNetwork: ethers.Network.from(545)
+      });
+    
+    default:
+      // Fallback to Coston2
+      const fallbackUrl = tatumApiKey 
+        ? `https://coston2-api.flare.network/ext/C/rpc?x-apikey=${tatumApiKey}`
+        : "https://coston2-api.flare.network/ext/C/rpc";
+      return new ethers.JsonRpcProvider(fallbackUrl, 114, {
+        staticNetwork: ethers.Network.from(114)
+      });
+  }
 }
 
 // Retry mechanism for contract calls
@@ -107,18 +142,18 @@ async function retryContractCall<T>(
 }
 
 // Function to get collateral token address from market contract
-async function getCollateralTokenAddress(marketAddress?: string): Promise<string | null> {
-  // Always use the config token address for consistency
-  const configTokenAddress = getBaseTokenAddress();
-  console.log('Using base token address from config:', configTokenAddress);
+async function getCollateralTokenAddress(chainId?: number): Promise<string | null> {
+  // Get the base token address for the specific chain
+  const configTokenAddress = getBaseTokenAddress(chainId);
+  console.log('Using base token address from config for chain', chainId, ':', configTokenAddress);
   COLLATERAL_TOKEN_ADDRESS = configTokenAddress;
   return COLLATERAL_TOKEN_ADDRESS;
 }
 
 // Function to get token balance
-export async function getTokenBalance(address: string, provider?: ethers.Provider): Promise<{ balance: string; symbol: string } | null> {
+export async function getTokenBalance(address: string, chainId?: number, provider?: ethers.Provider): Promise<{ balance: string; symbol: string } | null> {
   try {
-    const tokenAddress = await getCollateralTokenAddress();
+    const tokenAddress = await getCollateralTokenAddress(chainId);
     if (!tokenAddress) {
       console.warn('Could not get collateral token address');
       return {
@@ -129,9 +164,10 @@ export async function getTokenBalance(address: string, provider?: ethers.Provide
     
     console.log('Creating contract with address:', tokenAddress);
     console.log('User address:', address);
+    console.log('Chain ID:', chainId);
     
-    // Use dedicated provider for contract calls
-    const contractProvider = provider || getContractProvider();
+    // Use chain-aware provider for contract calls
+    const contractProvider = provider || (chainId ? getChainProvider(chainId) : getContractProvider());
     
     // First check if contract exists by getting its bytecode
     const code = await contractProvider.getCode(tokenAddress);
@@ -192,7 +228,7 @@ export async function getTokenBalance(address: string, provider?: ethers.Provide
   }
 }
 
-export async function mintTokens(address: string, amount: string, signer: ethers.Signer): Promise<boolean> {
+export async function mintTokens(address: string, amount: string, signer: ethers.Signer, chainId?: number): Promise<boolean> {
   try {
     console.log('Minting tokens to:', address);
     console.log('Amount:', amount);
@@ -204,7 +240,7 @@ export async function mintTokens(address: string, amount: string, signer: ethers
       return false;
     }
     
-    const tokenAddress = await getCollateralTokenAddress();
+    const tokenAddress = await getCollateralTokenAddress(chainId);
     if (!tokenAddress) {
       console.warn('Could not get collateral token address');
       console.log('Mock mint operation - tokens not actually minted');
@@ -246,12 +282,11 @@ export async function mintTokens(address: string, amount: string, signer: ethers
   }
 }
 
-export async function buyShares(assetIndex: number, amount: string, signer: ethers.Signer, marketAddress?: string): Promise<boolean> {
+export async function buyShares(assetIndex: number, amount: string, signer: ethers.Signer, marketAddress: string): Promise<boolean> {
   try {
     console.log('Buying shares for asset index:', assetIndex, 'amount:', amount);
     
-    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
-    const marketContract = new ethers.Contract(contractAddress, contractABI, signer);
+    const marketContract = new ethers.Contract(marketAddress, contractABI, signer);
     
     // Get the unit decimals and outcome slot count
     const [unitDec, outcomeSlotCount] = await Promise.all([
@@ -286,12 +321,11 @@ export async function buyShares(assetIndex: number, amount: string, signer: ethe
   }
 }
 
-export async function sellShares(assetIndex: number, amount: string, signer: ethers.Signer, marketAddress?: string): Promise<boolean> {
+export async function sellShares(assetIndex: number, amount: string, signer: ethers.Signer, marketAddress: string): Promise<boolean> {
   try {
     console.log('Selling shares for asset index:', assetIndex, 'amount:', amount);
     
-    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
-    const marketContract = new ethers.Contract(contractAddress, contractABI, signer);
+    const marketContract = new ethers.Contract(marketAddress, contractABI, signer);
     
     // Get the unit decimals and outcome slot count
     const [unitDec, outcomeSlotCount] = await Promise.all([
@@ -326,12 +360,11 @@ export async function sellShares(assetIndex: number, amount: string, signer: eth
   }
 }
 
-export async function redeemPayout(signer: ethers.Signer, marketAddress?: string): Promise<boolean> {
+export async function redeemPayout(signer: ethers.Signer, marketAddress: string): Promise<boolean> {
   try {
     console.log('Redeeming payout...');
     
-    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
-    const marketContract = new ethers.Contract(contractAddress, contractABI, signer);
+    const marketContract = new ethers.Contract(marketAddress, contractABI, signer);
     
     const tx = await marketContract.redeemPayout();
     console.log('Redeem transaction sent:', tx.hash);
@@ -346,9 +379,9 @@ export async function redeemPayout(signer: ethers.Signer, marketAddress?: string
   }
 }
 
-export async function checkAllowance(userAddress: string, provider?: ethers.Provider, marketAddress?: string): Promise<{ allowance: string; decimals: number } | null> {
+export async function checkAllowance(userAddress: string, provider?: ethers.Provider, marketAddress?: string, chainId?: number): Promise<{ allowance: string; decimals: number } | null> {
   try {
-    const tokenAddress = await getCollateralTokenAddress();
+    const tokenAddress = await getCollateralTokenAddress(chainId);
     if (!tokenAddress) {
       console.warn('Could not get collateral token address');
       return {
@@ -371,12 +404,13 @@ export async function checkAllowance(userAddress: string, provider?: ethers.Prov
     }
     
     const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, contractProvider);
-    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
     
     let allowance, decimals;
     
     try {
-      allowance = await tokenContract.allowance(userAddress, contractAddress);
+      // Check allowance for the market contract, not the token contract itself
+      const spenderAddress = marketAddress || tokenAddress; // Fallback to token address if no market address provided
+      allowance = await tokenContract.allowance(userAddress, spenderAddress);
     } catch (error) {
       console.error('Failed to get allowance:', error);
       allowance = 0n;
@@ -399,7 +433,7 @@ export async function checkAllowance(userAddress: string, provider?: ethers.Prov
   }
 }
 
-export async function approveTokens(address: string, amount: string, signer: ethers.Signer, marketAddress?: string): Promise<boolean> {
+export async function approveTokens(address: string, amount: string, signer: ethers.Signer, marketAddress?: string, chainId?: number): Promise<boolean> {
   try {
     console.log('Approving tokens for market contract...');
     
@@ -410,7 +444,7 @@ export async function approveTokens(address: string, amount: string, signer: eth
       return false;
     }
     
-    const tokenAddress = await getCollateralTokenAddress();
+    const tokenAddress = await getCollateralTokenAddress(chainId);
     if (!tokenAddress) {
       console.warn('Could not get collateral token address');
       console.log('Mock approve operation - tokens not actually approved');
@@ -435,28 +469,27 @@ export async function approveTokens(address: string, amount: string, signer: eth
     }
     
     const approveAmount = ethers.parseUnits(amount, decimals);
-    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
     
-    console.log('Approve amount:', approveAmount.toString());
-    
-    const tx = await tokenContract.approve(contractAddress, approveAmount);
-    console.log('Approval transaction sent:', tx.hash);
+    // Approve the market contract to spend tokens, not the token contract itself
+    const spenderAddress = marketAddress || tokenAddress; // Fallback to token address if no market address provided
+    const tx = await tokenContract.approve(spenderAddress, approveAmount);
+    console.log('Approve transaction sent:', tx.hash);
     
     await tx.wait();
-    console.log('Approval transaction confirmed');
+    console.log('Approve transaction confirmed');
     
     return true;
   } catch (error) {
-    console.error('Failed to approve tokens:', error);
+    console.error('Error approving tokens:', error);
     return false;
   }
 }
 
-export async function getTransactionCost(assetIndex: number, amount: string, provider: ethers.Provider, marketAddress?: string): Promise<{ cost: string; decimals: number } | null> {
+export async function getTransactionCost(assetIndex: number, amount: string, provider: ethers.Provider, marketAddress: string): Promise<{ cost: string; decimals: number } | null> {
   try {
-    const contractAddress = marketAddress || DEFAULT_MARKET_CONTRACT_ADDRESS;
-    const marketContract = new ethers.Contract(contractAddress, contractABI, provider);
+    const marketContract = new ethers.Contract(marketAddress, contractABI, provider);
     
+    // Get the unit decimals and outcome slot count
     const [unitDec, outcomeSlotCount] = await Promise.all([
       marketContract.UNIT_DEC(),
       marketContract.outcomeSlotCount()
@@ -464,17 +497,17 @@ export async function getTransactionCost(assetIndex: number, amount: string, pro
     
     const decimals = Math.round(Math.log10(Number(unitDec)));
     
-    // Create delta array
+    // Create delta array with the amount for the selected asset
     const deltaOutcomeAmounts = new Array(Number(outcomeSlotCount)).fill(0);
     deltaOutcomeAmounts[assetIndex] = ethers.parseUnits(amount, decimals);
     
+    // Calculate the cost
     const netCost = await marketContract.calcNetCost(deltaOutcomeAmounts);
-    const absoluteCost = netCost < 0n ? -netCost : netCost;
-    const cost = ethers.formatUnits(absoluteCost, decimals);
+    const cost = ethers.formatUnits(netCost, decimals);
     
     return {
-      cost: parseFloat(cost).toFixed(4),
-      decimals
+      cost: Math.abs(parseFloat(cost)).toFixed(6),
+      decimals: decimals
     };
   } catch (error) {
     console.error('Error calculating transaction cost:', error);
