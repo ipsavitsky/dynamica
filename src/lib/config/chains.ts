@@ -117,7 +117,7 @@ export const CHAIN_CONFIGS: Record<number, ChainConfig> = Object.fromEntries(
   ])
 );
 
-export const DEFAULT_CHAIN_ID = 114; // Default to Coston2
+export const DEFAULT_CHAIN_ID = 545; // Default to Flow EVM Testnet
 
 export function getChainConfig(chainId: number): ChainConfig | null {
   return CHAIN_CONFIGS[chainId] || null;

@@ -35,6 +35,7 @@
 
     let assetNames = $state<string[]>([]);
     let dataRows = $state<number[][]>([]);
+    let dataDates = $state<Date[]>([]); // Add dates state
     let currentAllocationData = $state<number[]>([]);
     let loading = $state(true);
     let error = $state<string | null>(null);
@@ -47,7 +48,7 @@
 
     let amount = $state(1);
     let decimals = $state(18); // Default to 18, will be updated from contract
-    let combinedMode = $state(true); // Toggle between combined and separate chart modes
+    let combinedMode = $state(false); // Toggle between combined and separate chart modes - default to separate charts
     let isDarkMode = $state(false);
 
     let isInvalid = $derived(amount <= 0);
@@ -60,6 +61,7 @@
     let transactionCost = $state<string | null>(null);
     let showConfirmation = $state(false);
     let pendingTransaction = $state<'buy' | 'sell' | null>(null);
+    let showMarketNotResolved = $state(false); // Add modal state for market not resolved
 
     let appKit: any = null;
 
@@ -228,6 +230,7 @@
 
             assetNames = data.headers;
             dataRows = data.rows;
+            dataDates = data.dates || []; // Assign dates with fallback
             marginalPrices = new Array(assetNames.length).fill(0);
             userShares = new Array(assetNames.length).fill(0);
             if (data.rows.length > 0) {
@@ -417,7 +420,9 @@
             },
         },
         xaxis: {
-            categories: dataRows.map((_: number[], index: number) => `Event ${index + 1}`),
+            categories: dataDates.length > 0 
+                ? dataDates.map(date => date.toLocaleDateString())
+                : dataRows.map((_: number[], index: number) => `Event ${index + 1}`),
             labels: {
                 show: false,
                 style: {
@@ -511,7 +516,9 @@
                     },
                 },
                 xaxis: {
-                    categories: dataRows.map((_: number[], index: number) => `Event ${index + 1}`),
+                    categories: dataDates.length > 0 
+                        ? dataDates.map(date => date.toLocaleDateString())
+                        : dataRows.map((_: number[], index: number) => `Event ${index + 1}`),
                     labels: {
                         show: false,
                         style: {
@@ -793,9 +800,12 @@
             if (success) {
                 console.log('Redeem successful');
                 await Promise.all([getContractPrice(), getMarginalPrices(), getUserShares()]);
+            } else {
+                showMarketNotResolved = true; // Show the modal if redeem fails
             }
         } catch (error) {
             console.error('Error during redeem:', error);
+            showMarketNotResolved = true; // Show the modal if redeem fails due to error
         } finally {
             isRedeeming = false;
         }
@@ -1065,6 +1075,58 @@
             </div>
         </div>
     {/if}
+</Modal>
+
+<!-- Market Not Resolved Modal -->
+<Modal bind:open={showMarketNotResolved} title="Market Not Resolved">
+    <div class="space-y-6">
+        <div class="text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900/20 mb-4">
+                <svg class="h-6 w-6 text-orange-600 dark:text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                Market Not Resolved
+            </h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+                The market for this dataset on the current chain is not yet resolved.
+            </p>
+        </div>
+        
+        <div class="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-orange-800 dark:text-orange-200">
+                        What this means:
+                    </h3>
+                    <div class="mt-2 text-sm text-orange-700 dark:text-orange-300">
+                        <ul class="list-disc list-inside space-y-1">
+                            <li>The market outcome has not been determined yet</li>
+                            <li>You may need to wait for the market to resolve</li>
+                            <li>Ensure you're on the correct chain</li>
+                            <li>Check if the market contract is properly deployed</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex justify-end space-x-3">
+            <Button 
+                onclick={() => showMarketNotResolved = false}
+                color="alternative"
+                size="sm"
+            >
+                Close
+            </Button>
+        </div>
+    </div>
 </Modal>
 
 <style>

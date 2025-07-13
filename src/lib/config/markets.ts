@@ -23,9 +23,9 @@ export const CHAIN_MARKETS: Record<number, Record<string, MarketConfig>> = {
     'crypto': {
       id: 'crypto',
       address: "0x01481e8f8a5480fCD7557102F48FeFdAA44b8279",
-      name: "Cryptocurrency Market",
-      description: "Prediction market for cryptocurrency price movements",
-      dataSource: 'crypto-fixture', // References fixture data source
+      name: "Ethereum/Bitcoin Market",
+      description: "Prediction market for Ethereum/Bitcoin price movements",
+      dataSource: 'crypto-coingecko-eth-btc', // References fixture data source
       competitors: 'crypto', // Will be refined to reference competitor set config
       enabled: true
     }
@@ -35,9 +35,9 @@ export const CHAIN_MARKETS: Record<number, Record<string, MarketConfig>> = {
     'crypto': {
       id: 'crypto',
       address: "0x1d78d565c900F82CdF7a397a2a8D06c4B6335309",
-      name: "Cryptocurrency Market",
-      description: "Prediction market for cryptocurrency price movements",
-      dataSource: 'crypto-fixture', // References fixture data source
+      name: "Ethereum/Bitcoin Market",
+      description: "Prediction market for Ethereum/Bitcoin price movements",
+      dataSource: 'crypto-coingecko-eth-btc', // References fixture data source
       competitors: 'crypto',
       enabled: true
     }
@@ -47,8 +47,8 @@ export const CHAIN_MARKETS: Record<number, Record<string, MarketConfig>> = {
     'crypto': {
       id: 'crypto',
       address: "0xA64bCFEB6250e2CB3DC858d2AFdd49DfD334FE5f", // market eth btc
-      name: "Cryptocurrency Market",
-      description: "Prediction market for cryptocurrency price movements",
+      name: "Ethereum/Bitcoin Market",
+      description: "Prediction market for Ethereum/Bitcoin price movements",
       dataSource: 'crypto-coingecko-eth-btc', // References CoinGecko data source
       competitors: 'crypto',
       enabled: true // Now deployed

@@ -133,9 +133,9 @@ export async function searchCoins(query: string): Promise<Array<{ id: string; sy
 export function convertToDataPoint(
   distribution: Record<string, PricePoint[]>,
   assetIds: string[]
-): { headers: string[]; rows: number[][] } {
+): { headers: string[]; rows: number[][]; dates: Date[] } {
   if (Object.keys(distribution).length === 0) {
-    return { headers: [], rows: [] };
+    return { headers: [], rows: [], dates: [] };
   }
 
   // Get all unique timestamps
@@ -154,5 +154,5 @@ export function convertToDataPoint(
     });
   });
 
-  return { headers, rows };
+  return { headers, rows, dates: timestamps };
 } 

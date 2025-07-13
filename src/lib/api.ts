@@ -17,6 +17,7 @@ import {
 export interface DataPoint {
   headers: string[];
   rows: number[][];
+  dates?: Date[]; // Optional dates for each data point
 }
 
 export interface ApiResponse {
@@ -83,13 +84,15 @@ export class DataService {
       // Normalize to distribution
       const distribution = normalizeToDistribution(priceSeries);
       
-      // Convert to DataPoint format
+      // Convert to DataPoint format (now includes dates)
       const dataPoint = convertToDataPoint(distribution, assets);
       
       console.log('CoinGecko data converted:', {
         headers: dataPoint.headers,
         rowCount: dataPoint.rows.length,
-        sampleRow: dataPoint.rows[0]
+        sampleRow: dataPoint.rows[0],
+        dateCount: dataPoint.dates.length,
+        sampleDate: dataPoint.dates[0]
       });
       
       return dataPoint;
@@ -99,7 +102,8 @@ export class DataService {
       const config = getCoinGeckoConfig(dataSource);
       return {
         headers: config?.assets.map(id => id.toUpperCase()) || ['ETHEREUM', 'BITCOIN'],
-        rows: []
+        rows: [],
+        dates: []
       };
     }
   }
@@ -122,10 +126,15 @@ export class DataService {
         throw new Error(`Failed to fetch fixture data: ${response.statusText}`);
       }
       
-      return await response.json();
+      const data = await response.json();
+      // Ensure dates field exists for consistency
+      return {
+        ...data,
+        dates: data.dates || []
+      };
     } catch (error) {
       console.error('Error fetching fixture data:', error);
-      return { headers: [], rows: [] };
+      return { headers: [], rows: [], dates: [] };
     }
   }
 
