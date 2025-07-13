@@ -65,9 +65,8 @@
     return `/market/${marketId}`;
   }
 
-  function isMarketDeployed(marketId: string): boolean {
-    return isMarketAvailable(selectedChainId, marketId);
-  }
+  // Reactive function to check if market is deployed on current chain
+  const isMarketDeployed = $derived((marketId: string) => isMarketAvailable(selectedChainId, marketId));
 </script>
 
 <div class="min-h-screen theme-surface transition-colors duration-300">

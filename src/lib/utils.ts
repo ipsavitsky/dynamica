@@ -228,7 +228,7 @@ export async function getTokenBalance(address: string, chainId?: number, provide
   }
 }
 
-export async function mintTokens(address: string, amount: string, signer: ethers.Signer): Promise<boolean> {
+export async function mintTokens(address: string, amount: string, signer: ethers.Signer, chainId?: number): Promise<boolean> {
   try {
     console.log('Minting tokens to:', address);
     console.log('Amount:', amount);
@@ -240,7 +240,7 @@ export async function mintTokens(address: string, amount: string, signer: ethers
       return false;
     }
     
-    const tokenAddress = await getCollateralTokenAddress();
+    const tokenAddress = await getCollateralTokenAddress(chainId);
     if (!tokenAddress) {
       console.warn('Could not get collateral token address');
       console.log('Mock mint operation - tokens not actually minted');
@@ -379,9 +379,9 @@ export async function redeemPayout(signer: ethers.Signer, marketAddress: string)
   }
 }
 
-export async function checkAllowance(userAddress: string, provider?: ethers.Provider, marketAddress?: string): Promise<{ allowance: string; decimals: number } | null> {
+export async function checkAllowance(userAddress: string, provider?: ethers.Provider, marketAddress?: string, chainId?: number): Promise<{ allowance: string; decimals: number } | null> {
   try {
-    const tokenAddress = await getCollateralTokenAddress();
+    const tokenAddress = await getCollateralTokenAddress(chainId);
     if (!tokenAddress) {
       console.warn('Could not get collateral token address');
       return {
@@ -408,7 +408,9 @@ export async function checkAllowance(userAddress: string, provider?: ethers.Prov
     let allowance, decimals;
     
     try {
-      allowance = await tokenContract.allowance(userAddress, tokenAddress);
+      // Check allowance for the market contract, not the token contract itself
+      const spenderAddress = marketAddress || tokenAddress; // Fallback to token address if no market address provided
+      allowance = await tokenContract.allowance(userAddress, spenderAddress);
     } catch (error) {
       console.error('Failed to get allowance:', error);
       allowance = 0n;
@@ -431,7 +433,7 @@ export async function checkAllowance(userAddress: string, provider?: ethers.Prov
   }
 }
 
-export async function approveTokens(address: string, amount: string, signer: ethers.Signer, marketAddress?: string): Promise<boolean> {
+export async function approveTokens(address: string, amount: string, signer: ethers.Signer, marketAddress?: string, chainId?: number): Promise<boolean> {
   try {
     console.log('Approving tokens for market contract...');
     
@@ -442,7 +444,7 @@ export async function approveTokens(address: string, amount: string, signer: eth
       return false;
     }
     
-    const tokenAddress = await getCollateralTokenAddress();
+    const tokenAddress = await getCollateralTokenAddress(chainId);
     if (!tokenAddress) {
       console.warn('Could not get collateral token address');
       console.log('Mock approve operation - tokens not actually approved');
@@ -468,7 +470,9 @@ export async function approveTokens(address: string, amount: string, signer: eth
     
     const approveAmount = ethers.parseUnits(amount, decimals);
     
-    const tx = await tokenContract.approve(tokenAddress, approveAmount);
+    // Approve the market contract to spend tokens, not the token contract itself
+    const spenderAddress = marketAddress || tokenAddress; // Fallback to token address if no market address provided
+    const tx = await tokenContract.approve(spenderAddress, approveAmount);
     console.log('Approve transaction sent:', tx.hash);
     
     await tx.wait();

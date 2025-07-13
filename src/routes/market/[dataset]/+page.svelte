@@ -217,12 +217,12 @@
                 }
             } else {
                 // Fallback to legacy behavior
-                if (dataset === 'drivers') {
-                    data = await dataService.getDriverData();
-                } else if (dataset === 'crypto') {
-                    data = await dataService.getCryptoData();
-                } else {
-                    throw new Error(`Unknown dataset: ${dataset}`);
+            if (dataset === 'drivers') {
+                data = await dataService.getDriverData();
+            } else if (dataset === 'crypto') {
+                data = await dataService.getCryptoData();
+            } else {
+                throw new Error(`Unknown dataset: ${dataset}`);
                 }
             }
 
@@ -669,7 +669,7 @@
             const signer = await ethersProvider.getSigner();
 
             // Check allowance first
-            const allowanceInfo = await checkAllowance(address, ethersProvider, contractAddress);
+            const allowanceInfo = await checkAllowance(address, ethersProvider, contractAddress, chainId);
             if (!allowanceInfo) return;
 
             const requiredAmount = parseFloat(transactionCost);
@@ -679,7 +679,7 @@
             console.log('Current allowance:', currentAllowance);
 
             // Check token balance first
-            const tokenBalance = await getTokenBalance(address, ethersProvider);
+            const tokenBalance = await getTokenBalance(address, chainId, ethersProvider);
             if (!tokenBalance) {
                 console.error('Could not get token balance');
                 return;
@@ -701,7 +701,7 @@
 
                 // Approve a bit more than needed to avoid future approvals
                 const approveAmount = (requiredAmount * 2).toString();
-                const approvalSuccess = await approveTokens(address, approveAmount, signer, contractAddress);
+                const approvalSuccess = await approveTokens(address, approveAmount, signer, contractAddress, chainId);
 
                 isApproving = false;
 

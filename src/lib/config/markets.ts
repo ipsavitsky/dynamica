@@ -42,16 +42,16 @@ export const CHAIN_MARKETS: Record<number, Record<string, MarketConfig>> = {
       enabled: true
     }
   },
-  // Flow EVM Testnet - Placeholder (no markets deployed yet)
+  // Flow EVM Testnet - ETH/BTC market deployed
   545: {
     'crypto': {
       id: 'crypto',
-      address: "0x0000000000000000000000000000000000000000", // Placeholder
+      address: "0xA64bCFEB6250e2CB3DC858d2AFdd49DfD334FE5f", // market eth btc
       name: "Cryptocurrency Market",
       description: "Prediction market for cryptocurrency price movements",
       dataSource: 'crypto',
       competitors: 'crypto',
-      enabled: false // Not deployed yet
+      enabled: true // Now deployed
     }
   }
 };

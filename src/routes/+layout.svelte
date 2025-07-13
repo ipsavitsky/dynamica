@@ -188,7 +188,8 @@
 			const signer = await ethersProvider.getSigner();
 
 			console.log('Signer created, minting 10 tokens...');
-			const success = await mintTokens(address, '10', signer);
+			const chainId = get(currentChainId);
+			const success = await mintTokens(address, '10', signer, chainId);
 
 			if (success) {
 				console.log('Mint successful, refreshing balance...');

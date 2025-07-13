@@ -91,7 +91,7 @@ const CHAIN_DEFINITIONS = {
         url: 'https://evm-testnet.flowscan.io',
       },
     },
-    baseTokenAddress: "0x0000000000000000000000000000000000000000", // Placeholder
+    baseTokenAddress: "0xAB51568D34c67681156200feF7eA46ca0337b1E4", // mockToken
   },
 } as const;
 
