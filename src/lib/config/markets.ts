@@ -3,7 +3,7 @@ export interface MarketConfig {
   address: string;
   name: string;
   description: string;
-  dataSource: string; // Reference to data source (will be refined later)
+  dataSource: string; // Reference to data source ID from dataSources.ts
   competitors: string; // Reference to competitor set (will be refined later)
   enabled: boolean;
 }
@@ -16,7 +16,7 @@ export const CHAIN_MARKETS: Record<number, Record<string, MarketConfig>> = {
       address: "0x9d127B8a587DD2fF08d24dA031eF1060625ae3f4",
       name: "Formula 1 Drivers Market",
       description: "Prediction market for Formula 1 driver performance",
-      dataSource: 'drivers', // Will be refined to reference data source config
+      dataSource: 'drivers', // References 'drivers' data source
       competitors: 'drivers', // Will be refined to reference competitor set config
       enabled: true
     },
@@ -25,7 +25,7 @@ export const CHAIN_MARKETS: Record<number, Record<string, MarketConfig>> = {
       address: "0x01481e8f8a5480fCD7557102F48FeFdAA44b8279",
       name: "Cryptocurrency Market",
       description: "Prediction market for cryptocurrency price movements",
-      dataSource: 'crypto', // Will be refined to reference data source config
+      dataSource: 'crypto-fixture', // References fixture data source
       competitors: 'crypto', // Will be refined to reference competitor set config
       enabled: true
     }
@@ -37,7 +37,7 @@ export const CHAIN_MARKETS: Record<number, Record<string, MarketConfig>> = {
       address: "0x1d78d565c900F82CdF7a397a2a8D06c4B6335309",
       name: "Cryptocurrency Market",
       description: "Prediction market for cryptocurrency price movements",
-      dataSource: 'crypto',
+      dataSource: 'crypto-fixture', // References fixture data source
       competitors: 'crypto',
       enabled: true
     }
@@ -49,7 +49,7 @@ export const CHAIN_MARKETS: Record<number, Record<string, MarketConfig>> = {
       address: "0xA64bCFEB6250e2CB3DC858d2AFdd49DfD334FE5f", // market eth btc
       name: "Cryptocurrency Market",
       description: "Prediction market for cryptocurrency price movements",
-      dataSource: 'crypto',
+      dataSource: 'crypto-coingecko-eth-btc', // References CoinGecko data source
       competitors: 'crypto',
       enabled: true // Now deployed
     }
@@ -81,4 +81,9 @@ export function isMarketAvailable(chainId: number, marketId: string): boolean {
   
   // Check if market is enabled and has a valid address
   return config.enabled && config.address !== "0x0000000000000000000000000000000000000000";
+}
+
+export function getMarketDataSource(chainId: number, marketId: string): string | null {
+  const config = getMarketConfig(chainId, marketId);
+  return config ? config.dataSource : null;
 } 
