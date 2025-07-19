@@ -1,125 +1,60 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
-  let config = {
-    driverPoints: {
-      enabled: true,
-      customData: '',
-      dataLimiter: -1
-    },
-    cryptoPrices: {
-      enabled: true,
-      customData: '',
-      dataLimiter: -1
-    }
-  };
-
+  let config = { driverPoints: { enabled: true, customData: '', dataLimiter: -1 }, cryptoPrices: { enabled: true, customData: '', dataLimiter: -1 } };
   let currentData: any = null;
   let loading = false;
   let message = '';
 
-  onMount(async () => {
-    await fetchCurrentData();
-    console.log('Component mounted, testEndpoint function:', typeof testEndpoint);
-  });
+  const fetchData = async (url: string, options?: RequestInit) => {
+    const response = await fetch(url, options);
+    return await response.json();
+  };
 
-  async function fetchCurrentData() {
+  const fetchCurrentData = async () => {
+    loading = true;
+    try { currentData = await fetchData('/api/data'); } 
+    catch (error) { message = 'Error fetching data: ' + error; }
+    finally { loading = false; }
+  };
+
+  const updateConfig = async () => {
     loading = true;
     try {
-      const response = await fetch('/api/data');
-      currentData = await response.json();
-    } catch (error) {
-      message = 'Error fetching data: ' + error;
-    } finally {
-      loading = false;
-    }
-  }
+      const result = await fetchData('/api/data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
+      message = result.success ? 'Configuration updated successfully!' : 'Failed to update configuration';
+      if (result.success) await fetchCurrentData();
+    } catch (error) { message = 'Error updating configuration: ' + error; }
+    finally { loading = false; }
+  };
 
-  async function updateConfig() {
+  const resetConfig = async () => {
     loading = true;
     try {
-      const response = await fetch('/api/data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(config)
-      });
-      
-      const result = await response.json();
-      if (result.success) {
-        message = 'Configuration updated successfully!';
-        await fetchCurrentData();
-      } else {
-        message = 'Failed to update configuration';
-      }
-    } catch (error) {
-      message = 'Error updating configuration: ' + error;
-    } finally {
-      loading = false;
-    }
-  }
+      const result = await fetchData('/api/data', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reset: true }) });
+      if (result.success) { config = result.config; message = 'Configuration reset to defaults!'; await fetchCurrentData(); }
+      else message = 'Failed to reset configuration';
+    } catch (error) { message = 'Error resetting configuration: ' + error; }
+    finally { loading = false; }
+  };
 
-  async function resetConfig() {
+  const testEndpoint = async (type: string, latest?: boolean) => {
     loading = true;
     try {
-      const response = await fetch('/api/data', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ reset: true })
-      });
-      
-      const result = await response.json();
-      if (result.success) {
-        config = result.config;
-        message = 'Configuration reset to defaults!';
-        await fetchCurrentData();
-      } else {
-        message = 'Failed to reset configuration';
-      }
-    } catch (error) {
-      message = 'Error resetting configuration: ' + error;
-    } finally {
-      loading = false;
-    }
-  }
+      const url = `/api/data?type=${type}${latest ? '&latest=true' : ''}`;
+      const data = await fetchData(url);
+      currentData = type === 'drivers' || type === 'crypto' ? { [type]: data } : data;
+      message = `Fetched ${type} data successfully!`;
+    } catch (error) { message = `Error testing ${type} endpoint: ${error}`; }
+    finally { loading = false; }
+  };
 
-  async function testEndpoint(type: string, latest?: boolean) {
-    console.log('testEndpoint called with:', type, latest);
-    loading = true;
-    try {
-      let url = `/api/data?type=${type}`;
-      if (latest) {
-        url += '&latest=true';
-      }
-      console.log('Fetching URL:', url);
-      const response = await fetch(url);
-      const data = await response.json();
-      console.log(`${type} data (${latest ? 'latest' : 'all accessible'}):`, data);
-      
-      // Update the current data preview to show the test results
-      if (type === 'drivers' || type === 'crypto') {
-        currentData = { [type]: data };
-      } else {
-        currentData = data; // For empty type, it returns both datasets
-      }
-      
-      message = `Fetched ${type} data successfully! Check console for details.`;
-    } catch (error) {
-      console.error('Error in testEndpoint:', error);
-      message = `Error testing ${type} endpoint: ${error}`;
-    } finally {
-      loading = false;
-    }
-  }
-
-  // Simple test function
-  function simpleTest() {
+  const simpleTest = () => {
+    message = 'Simple test executed successfully!';
     console.log('Simple test function called');
-    message = 'Simple test function works!';
-  }
+  };
+
+  onMount(fetchCurrentData);
 </script>
 
 <svelte:head>

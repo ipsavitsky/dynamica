@@ -1,18 +1,15 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { Card, A, Select, Button } from 'flowbite-svelte';
+  import { Card, Select } from 'flowbite-svelte';
   import { currentChainId, currentChain, availableCurrentMarkets, availableChains, switchChain } from '$lib/chainManager';
-  import { isMarketAvailable, getAvailableMarkets } from '$lib/config/markets';
+  import { isMarketAvailable, getAvailableMarkets } from '$lib/config/index';
   import { switchWalletNetwork } from '$lib/appkit';
   import { get } from 'svelte/store';
-  import { browser } from '$app/environment';
 
   let selectedChainId = $state(get(currentChainId));
   let markets = $state(get(availableCurrentMarkets));
   let chains = $state(get(availableChains));
   let currentChainConfig = $state(get(currentChain));
 
-  // Subscribe to store changes
   $effect(() => {
     selectedChainId = get(currentChainId);
     markets = get(availableCurrentMarkets);
@@ -20,52 +17,16 @@
     currentChainConfig = get(currentChain);
   });
 
-  // Sync with wallet state on page load
-  $effect(() => {
-    if (browser && window.ethereum) {
-      // Get current wallet chain and sync our state
-      window.ethereum.request({ method: 'eth_chainId' })
-        .then((chainId: string) => {
-          const decimalChainId = parseInt(chainId, 16);
-          if (decimalChainId !== selectedChainId) {
-            console.log('Syncing page state with wallet chain:', decimalChainId);
-            switchChain(decimalChainId);
-          }
-        })
-        .catch((error: any) => {
-          console.error('Failed to get wallet chain:', error);
-        });
-    }
-  });
-
-  async function handleChainChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    const newChainId = parseInt(target.value);
-    
-    // Update the UI state first
+  const handleChainChange = async (event: Event) => {
+    const newChainId = parseInt((event.target as HTMLSelectElement).value);
     if (switchChain(newChainId)) {
       selectedChainId = newChainId;
-      
-      // Try to switch the wallet network as well
-      try {
-        const walletSwitched = await switchWalletNetwork(newChainId);
-        if (walletSwitched) {
-          console.log('Wallet network switched successfully');
-        } else {
-          console.log('Wallet network switch failed, but UI updated');
-        }
-      } catch (error) {
-        console.error('Error switching wallet network:', error);
-        // UI is still updated even if wallet switch fails
-      }
+      try { await switchWalletNetwork(newChainId); } catch {}
     }
-  }
+  };
 
-  function getMarketUrl(marketId: string): string {
-    return `/market/${marketId}`;
-  }
+  const getMarketUrl = (marketId: string) => `/market/${marketId}`;
 
-  // Reactive function to check if market is deployed on current chain
   const isMarketDeployed = $derived((marketId: string) => isMarketAvailable(selectedChainId, marketId));
 </script>
 
