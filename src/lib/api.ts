@@ -1,200 +1,92 @@
-import { 
-  fetchMultipleAssetPrices, 
-  normalizeToDistribution, 
-  convertToDataPoint 
-} from './coingecko';
-import { get } from 'svelte/store';
-import { currentChainId } from './chainManager';
-import { 
-  getDataSourceForMarket, 
-  isCoinGeckoDataSource, 
-  isFixtureDataSource,
+import {
+  fetchMultipleAssetPrices,
+  normalizeToDistribution,
+  convertToDataPoint,
+} from "./coingecko";
+import { get } from "svelte/store";
+import { currentChainId } from "./chainManager";
+import {
+  getDataSourceForMarket,
+  isCoinGeckoDataSource,
   getCoinGeckoConfig,
-  getFixtureConfig,
-  type DataSourceConfig
-} from './config/dataSources';
+} from "./config/dataSources";
 
 export interface DataPoint {
   headers: string[];
   rows: number[][];
-  dates?: Date[]; // Optional dates for each data point
+  dates?: Date[];
 }
 
-export interface ApiResponse {
-  drivers?: DataPoint;
-  crypto?: DataPoint;
-}
-
-export class DataService {
-  private baseUrl = '/api/data';
-
-  async getDriverData(latest?: boolean): Promise<DataPoint> {
-    const url = new URL(this.baseUrl, window.location.origin);
-    url.searchParams.set('type', 'drivers');
-    if (latest) {
-      url.searchParams.set('latest', 'true');
-    }
-    
+class DataService {
+  private async fetchData(type: string, latest?: boolean): Promise<DataPoint> {
+    const url = new URL("/api/data", window.location.origin);
+    url.searchParams.set("type", type);
+    if (latest) url.searchParams.set("latest", "true");
     const response = await fetch(url.toString());
-    if (!response.ok) {
-      throw new Error(`Failed to fetch driver data: ${response.statusText}`);
-    }
-    
+    if (!response.ok)
+      throw new Error(`Failed to fetch ${type} data: ${response.statusText}`);
     return await response.json();
+  }
+
+  async getDriverData(latest?: boolean) {
+    return this.fetchData("drivers", latest);
   }
 
   async getCryptoData(latest?: boolean): Promise<DataPoint> {
-    const chainId = get(currentChainId);
-    const dataSource = getDataSourceForMarket(chainId, 'crypto');
-    
-    if (!dataSource) {
-      console.warn(`No data source configured for chain ${chainId}, market crypto`);
-      return { headers: [], rows: [] };
-    }
-
-    console.log(`Using data source: ${dataSource.name} (${dataSource.type}) for chain ${chainId}`);
+    const dataSource = getDataSourceForMarket(get(currentChainId), "crypto");
+    if (!dataSource) return { headers: [], rows: [] };
 
     if (isCoinGeckoDataSource(dataSource)) {
-      return await this.getDataFromCoinGecko(dataSource, latest);
-    } else if (isFixtureDataSource(dataSource)) {
-      return await this.getDataFromFixture(dataSource, latest);
-    } else {
-      console.error(`Unsupported data source type: ${dataSource.type}`);
-      return { headers: [], rows: [] };
-    }
-  }
-
-  private async getDataFromCoinGecko(dataSource: DataSourceConfig, latest?: boolean): Promise<DataPoint> {
-    try {
       const config = getCoinGeckoConfig(dataSource);
-      if (!config) {
-        throw new Error('Invalid CoinGecko configuration');
-      }
+      if (!config) return { headers: [], rows: [] };
 
-      const { assets, days: configDays, vsCurrency } = config;
-      
-      // Use fewer days if latest is requested
-      const days = latest ? Math.min(configDays, 7) : configDays;
-      
-      console.log(`Fetching ${days} days of crypto data from CoinGecko for:`, assets);
-      
-      // Fetch prices for all assets
-      const priceSeries = await fetchMultipleAssetPrices(assets, days);
-      
-      // Normalize to distribution
-      const distribution = normalizeToDistribution(priceSeries);
-      
-      // Convert to DataPoint format (now includes dates)
-      const dataPoint = convertToDataPoint(distribution, assets);
-      
-      console.log('CoinGecko data converted:', {
-        headers: dataPoint.headers,
-        rowCount: dataPoint.rows.length,
-        sampleRow: dataPoint.rows[0],
-        dateCount: dataPoint.dates.length,
-        sampleDate: dataPoint.dates[0]
-      });
-      
-      return dataPoint;
-    } catch (error) {
-      console.error('Error fetching crypto data from CoinGecko:', error);
-      // Fallback to empty data with headers from config
-      const config = getCoinGeckoConfig(dataSource);
-      return {
-        headers: config?.assets.map(id => id.toUpperCase()) || ['ETHEREUM', 'BITCOIN'],
-        rows: [],
-        dates: []
-      };
+      try {
+        const days = latest
+          ? Math.min(config.days || 30, 7)
+          : config.days || 30;
+        const priceSeries = await fetchMultipleAssetPrices(
+          config.assets || [],
+          days,
+        );
+        const distribution = normalizeToDistribution(priceSeries);
+        return convertToDataPoint(distribution, config.assets || []);
+      } catch (error) {
+        console.error("Error fetching crypto data from CoinGecko:", error);
+        return {
+          headers: config.assets?.map((id) => id.toUpperCase()) || [
+            "ETHEREUM",
+            "BITCOIN",
+          ],
+          rows: [],
+          dates: [],
+        };
+      }
     }
+
+    return this.fetchData("crypto", latest);
   }
 
-  private async getDataFromFixture(dataSource: DataSourceConfig, latest?: boolean): Promise<DataPoint> {
-    try {
-      const config = getFixtureConfig(dataSource);
-      if (!config) {
-        throw new Error('Invalid fixture configuration');
-      }
-
-      const url = new URL(this.baseUrl, window.location.origin);
-      url.searchParams.set('type', config.dataType);
-      if (latest) {
-        url.searchParams.set('latest', 'true');
-      }
-      
-      const response = await fetch(url.toString());
-      if (!response.ok) {
-        throw new Error(`Failed to fetch fixture data: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      // Ensure dates field exists for consistency
-      return {
-        ...data,
-        dates: data.dates || []
-      };
-    } catch (error) {
-      console.error('Error fetching fixture data:', error);
-      return { headers: [], rows: [], dates: [] };
-    }
-  }
-
-  async getAllData(latest?: boolean): Promise<ApiResponse> {
-    const url = new URL(this.baseUrl, window.location.origin);
-    if (latest) {
-      url.searchParams.set('latest', 'true');
-    }
-    
-    const response = await fetch(url.toString());
-    if (!response.ok) {
-      throw new Error(`Failed to fetch data: ${response.statusText}`);
-    }
-    
-    return await response.json();
-  }
-
-  async updateConfig(config: {
-    driverPoints?: {
-      enabled?: boolean;
-      customData?: string;
-      dataLimiter?: number;
-    };
-    cryptoPrices?: {
-      enabled?: boolean;
-      customData?: string;
-      dataLimiter?: number;
-    };
-  }): Promise<{ success: boolean; config: any }> {
-    const response = await fetch(this.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(config)
+  async updateConfig(config: any) {
+    const response = await fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
     });
-    
-    if (!response.ok) {
+    if (!response.ok)
       throw new Error(`Failed to update config: ${response.statusText}`);
-    }
-    
     return await response.json();
   }
 
-  async resetConfig(): Promise<{ success: boolean; config: any }> {
-    const response = await fetch(this.baseUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ reset: true })
+  async resetConfig() {
+    const response = await fetch("/api/data", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reset: true }),
     });
-    
-    if (!response.ok) {
+    if (!response.ok)
       throw new Error(`Failed to reset config: ${response.statusText}`);
-    }
-    
     return await response.json();
   }
 }
 
-// Export a singleton instance
-export const dataService = new DataService(); 
+export const dataService = new DataService();

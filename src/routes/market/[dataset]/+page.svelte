@@ -7,118 +7,60 @@
     import { page } from "$app/stores";
     import { dataService, type DataPoint } from "$lib/api";
     import { contractABI } from "$lib/abi";
-    import { buyShares, sellShares, redeemPayout, checkAllowance, approveTokens, getTransactionCost, getTokenBalance } from "$lib/utils";
+    import { buyShares, sellShares, redeemPayout, checkAllowance, approveTokens, getTransactionCost, getTokenBalance, getChainProvider } from "$lib/utils";
     import { initializeAppKit } from "$lib/appkit";
     import { browser } from "$app/environment";
-    import { getChartColors, getApexChartTheme, themeClasses } from "$lib/theme";
-    import { getContractProvider, getChainProvider } from "$lib/utils";
-    import { getMarketAddressByChain, getMarketConfigByChain } from "$lib/config/index";
+    import { getChartColors } from "$lib/theme";
+    import { getMarketAddress, getMarketConfig } from "$lib/config/index";
     import { currentChainId, currentChain } from "$lib/chainManager";
     import { get } from "svelte/store";
 
-    // Get the dataset name from the URL
     const { dataset } = $page.params;
-    
-    // Get current chain ID
     let chainId = $state(get(currentChainId));
     let currentChainConfig = $state(get(currentChain));
-    
-    // Subscribe to chain changes
-    $effect(() => {
-        chainId = get(currentChainId);
-        currentChainConfig = get(currentChain);
-    });
-    
-    // Get contract address for this dataset and chain
-    let contractAddress = $derived(getMarketAddressByChain(chainId, dataset));
-    let marketConfig = $derived(getMarketConfigByChain(chainId, dataset));
+    let contractAddress = $derived(getMarketAddress(chainId, dataset));
+    let marketConfig = $derived(getMarketConfig(chainId, dataset));
 
     let assetNames = $state<string[]>([]);
     let dataRows = $state<number[][]>([]);
-    let dataDates = $state<Date[]>([]); // Add dates state
+    let dataDates = $state<Date[]>([]);
     let currentAllocationData = $state<number[]>([]);
     let loading = $state(true);
     let error = $state<string | null>(null);
-
     let marginalPrices = $state<number[]>([]);
     let userShares = $state<number[]>([]);
-
     let selectedAsset = $state("");
-    let selectItems = $derived(assetNames.map((name) => ({ name, value: name })));
-
     let amount = $state(1);
-    let decimals = $state(18); // Default to 18, will be updated from contract
-    let combinedMode = $state(false); // Toggle between combined and separate chart modes - default to separate charts
+    let decimals = $state(18);
+    let combinedMode = $state(false);
     let isDarkMode = $state(false);
-
-    let isInvalid = $derived(amount <= 0);
-
     let isBuying = $state(false);
     let isSelling = $state(false);
     let isRedeeming = $state(false);
     let isApproving = $state(false);
-
     let transactionCost = $state<string | null>(null);
     let showConfirmation = $state(false);
     let pendingTransaction = $state<'buy' | 'sell' | null>(null);
-    let showMarketNotResolved = $state(false); // Add modal state for market not resolved
+    let showMarketNotResolved = $state(false);
 
-    let appKit: any = null;
+    const appKit = browser ? initializeAppKit() : null;
+    const selectItems = $derived(assetNames.map((name) => ({ name, value: name })));
+    const isInvalid = $derived(amount <= 0);
+    let price = $state("...");
+    const pricePerShare = $derived(!isInvalid && price !== "..." && price !== "Error" ? (parseFloat(price) / amount).toFixed(2) : "0.00");
 
-    // Initialize AppKit in browser
-    if (browser) {
-        appKit = initializeAppKit();
-    }
-
-    const increment = () => (amount += 1);
-    const decrement = () => (amount = Math.max(0, amount - 1));
-
-    let price = $state("..."); // Initial state
-
-    let pricePerShare = $derived(
-        !isInvalid && price !== "..." && price !== "Error"
-            ? (parseFloat(price) / amount).toFixed(2)
-            : "0.00",
-    );
-
-    const getUnitDec = async () => {
-        try {
-            if (!contractAddress) {
-                console.error("No contract address available");
-                return;
-            }
-            const provider = getChainProvider(chainId);
-            const contract = new ethers.Contract(contractAddress, contractABI, provider);
-            const unitDec = await contract.UNIT_DEC();
-            decimals = Math.round(Math.log10(Number(unitDec)));
-        } catch (error) {
-            console.error("Error fetching UNIT_DEC from contract:", error);
-        }
-    }
+    const getProvider = () => window.ethereum || appKit?.getProvider?.('eip155');
 
     const getContractPrice = async () => {
-        if (isInvalid) {
-            price = "0.00";
-            return;
-        }
+        if (isInvalid || !contractAddress) { price = isInvalid ? "0.00" : "Error"; return; }
         try {
-            if (!contractAddress) {
-                price = "Error";
-                return;
-            }
-            const provider = getChainProvider(chainId);
-            const contract = new ethers.Contract(contractAddress, contractABI, provider);
-
+            const contract = new ethers.Contract(contractAddress, contractABI, getChainProvider(chainId));
             const outcomeSlotCount = await contract.outcomeSlotCount();
             const deltaOutcomeAmounts = new Array(Number(outcomeSlotCount)).fill(0);
             const assetIndex = assetNames.indexOf(selectedAsset);
-            if (assetIndex !== -1) {
-                deltaOutcomeAmounts[assetIndex] = ethers.parseUnits(amount.toString(), decimals);
-            }
-
+            if (assetIndex !== -1) deltaOutcomeAmounts[assetIndex] = ethers.parseUnits(amount.toString(), decimals);
             const netCost = await contract.calcNetCost(deltaOutcomeAmounts);
-            const cost = parseFloat(ethers.formatUnits(netCost, decimals));
-            price = Math.abs(cost).toFixed(2);
+            price = Math.abs(parseFloat(ethers.formatUnits(netCost, decimals))).toFixed(2);
         } catch (error) {
             console.error("Error fetching price from contract:", error);
             price = "Error";
@@ -126,521 +68,68 @@
     };
 
     const getMarginalPrices = async () => {
+        if (!contractAddress) return;
         try {
-            if (!contractAddress) {
-                console.error("No contract address available");
-                return;
-            }
-            const provider = getChainProvider(chainId);
-            const contract = new ethers.Contract(contractAddress, contractABI, provider);
-            const prices = await Promise.all(
-                assetNames.map((_, i) => contract.calcMarginalPrice(i))
-            );
+            const contract = new ethers.Contract(contractAddress, contractABI, getChainProvider(chainId));
+            const prices = await Promise.all(assetNames.map((_, i) => contract.calcMarginalPrice(i)));
             marginalPrices = prices.map(p => parseFloat(ethers.formatUnits(p, decimals)));
         } catch (error) {
-            console.error("Error fetching marginal prices from contract:", error);
+            console.error("Error fetching marginal prices:", error);
         }
-    }
+    };
 
     const getUserShares = async () => {
+        if (!appKit || !contractAddress) { userShares = new Array(assetNames.length).fill(0); return; }
         try {
-            if (!appKit) return;
-            
             const caipAddress = appKit.getCaipAddress();
-            if (!caipAddress) {
-                userShares = new Array(assetNames.length).fill(0);
-                return;
-            }
-            
-            if (!contractAddress) {
-                console.error("No contract address available");
-                userShares = new Array(assetNames.length).fill(0);
-                return;
-            }
-            
+            if (!caipAddress) { userShares = new Array(assetNames.length).fill(0); return; }
             const userAddress = caipAddress.split(':')[2];
-            const provider = getChainProvider(chainId);
-            const contract = new ethers.Contract(contractAddress, contractABI, provider);
-            
-            const shares = await Promise.all(
-                assetNames.map((_, i) => contract.userShares(userAddress, i))
-            );
+            const contract = new ethers.Contract(contractAddress, contractABI, getChainProvider(chainId));
+            const shares = await Promise.all(assetNames.map((_, i) => contract.userShares(userAddress, i)));
             userShares = shares.map(share => parseFloat(ethers.formatUnits(share, decimals)));
         } catch (error) {
-            console.error("Error fetching user shares from contract:", error);
+            console.error("Error fetching user shares:", error);
             userShares = new Array(assetNames.length).fill(0);
         }
-    }
+    };
 
-    $effect(() => {
-        // Watch for changes in amount and selectedAsset
-        amount;
-        selectedAsset;
-        getContractPrice();
-    });
-
-    // Watch for chain changes
-    $effect(() => {
-        if (chainId && dataset) {
-            // Reload data when chain changes
-            loadMarketData();
-        }
-    });
-
-    // Separate function to load market data
-    async function loadMarketData() {
+    const loadMarketData = async () => {
         try {
             loading = true;
             error = null;
+            if (!marketConfig?.enabled) throw new Error(`Market "${dataset}" is not available on ${currentChainConfig?.name || 'this chain'}.`);
             
-            // Check if market is available on current chain
-            if (!marketConfig || !marketConfig.enabled) {
-                throw new Error(`Market "${dataset}" is not available on ${currentChainConfig?.name || 'this chain'}. Please switch to a chain where this market is deployed.`);
-            }
-            
-            let data: DataPoint;
-            
-            // Use the data source from market config
-            if (marketConfig && marketConfig.dataSource) {
-                // Fetch data based on the configured data source
-                if (marketConfig.dataSource === 'drivers') {
-                    data = await dataService.getDriverData();
-                } else if (marketConfig.dataSource === 'crypto') {
-                    data = await dataService.getCryptoData();
-                } else {
-                    // Fallback to dataset name for backward compatibility
-                    if (dataset === 'drivers') {
-                        data = await dataService.getDriverData();
-                    } else if (dataset === 'crypto') {
-                        data = await dataService.getCryptoData();
-                    } else {
-                        throw new Error(`Unknown data source: ${marketConfig.dataSource}`);
-                    }
-                }
-            } else {
-                // Fallback to legacy behavior
-            if (dataset === 'drivers') {
-                data = await dataService.getDriverData();
-            } else if (dataset === 'crypto') {
-                data = await dataService.getCryptoData();
-            } else {
-                throw new Error(`Unknown dataset: ${dataset}`);
-                }
-            }
-
+            const data = dataset === 'drivers' ? await dataService.getDriverData() : await dataService.getCryptoData();
             assetNames = data.headers;
             dataRows = data.rows;
-            dataDates = data.dates || []; // Assign dates with fallback
+            dataDates = data.dates || [];
             marginalPrices = new Array(assetNames.length).fill(0);
             userShares = new Array(assetNames.length).fill(0);
-            if (data.rows.length > 0) {
-                currentAllocationData = data.rows[data.rows.length - 1];
-            }
-
+            if (data.rows.length > 0) currentAllocationData = data.rows[data.rows.length - 1];
             selectedAsset = assetNames[0] || "";
-
-            // Check dark mode
             isDarkMode = document.documentElement.classList.contains('dark');
 
-            // Now fetch contract data
-            await getUnitDec();
-            await Promise.all([getContractPrice(), getMarginalPrices(), getUserShares()]);
-
+            if (contractAddress) {
+                const contract = new ethers.Contract(contractAddress, contractABI, getChainProvider(chainId));
+                const unitDec = await contract.UNIT_DEC();
+                decimals = Math.round(Math.log10(Number(unitDec)));
+                await Promise.all([getContractPrice(), getMarginalPrices(), getUserShares()]);
+            }
         } catch (e: any) {
             error = e.message;
         } finally {
             loading = false;
         }
-    }
-
-    onMount(async () => {
-        await loadMarketData();
-    });
-
-    const formatYAxisLabel = (value: any) => {
-        if (typeof value === "number") {
-            return value.toFixed(2);
-        }
-        return value;
     };
 
-    let options: ApexOptions = $derived({
-        colors: getChartColors(2, isDarkMode),
-        series: [
-            {
-                name: "Current percentage",
-                color: getChartColors(2, isDarkMode)[0],
-                data: assetNames.map((name: string, i: number) => ({
-                    x: name,
-                    y: currentAllocationData[i],
-                })),
-            },
-            {
-                name: "Margin price",
-                color: getChartColors(2, isDarkMode)[1],
-                data: assetNames.map((name: string, i: number) => ({
-                    x: name,
-                    y: marginalPrices[i],
-                })),
-            },
-        ],
-        chart: {
-            type: "bar",
-            height: "320px",
-            fontFamily: "Inter, sans-serif",
-            toolbar: {
-                show: false,
-            },
-            foreColor: isDarkMode ? '#f9fafb' : '#111827',
-        },
-        plotOptions: {
-            bar: {
-                horizontal: false,
-                columnWidth: "70%",
-                borderRadiusApplication: "end",
-                borderRadius: 8,
-            },
-        },
-        tooltip: {
-            shared: true,
-            intersect: false,
-            style: {
-                fontFamily: "Inter, sans-serif",
-            },
-            theme: isDarkMode ? 'dark' : 'light',
-        },
-        states: {
-            hover: {
-                filter: {
-                    type: "darken",
-                },
-            },
-        },
-        stroke: {
-            show: true,
-            width: 0,
-            colors: ["transparent"],
-        },
-        grid: {
-            show: false,
-            strokeDashArray: 4,
-            padding: {
-                left: 2,
-                right: 2,
-                top: -14,
-            },
-        },
-        dataLabels: {
-            enabled: false,
-        },
-        legend: {
-            show: false,
-        },
-        xaxis: {
-            floating: false,
-            labels: {
-                show: true,
-                style: {
-                    fontFamily: "Inter, sans-serif",
-                    colors: isDarkMode ? '#f9fafb' : '#111827',
-                },
-            },
-            axisBorder: {
-                show: false,
-            },
-            axisTicks: {
-                show: false,
-            },
-        },
-        yaxis: {
-            show: true,
-            labels: {
-                formatter: function (value: number) {
-                    return value.toFixed(3);
-                },
-                style: {
-                    colors: isDarkMode ? '#f9fafb' : '#111827',
-                },
-            },
-        },
-        fill: {
-            opacity: 1,
-        },
-    });
-
-    // Define consistent colors for assets using theme colors
-    const assetColors = $derived(getChartColors(Math.max(10, assetNames.length), isDarkMode));
-
-    let lineChartOptions: ApexOptions = $derived({
-        chart: {
-            height: "320px",
-            type: "line",
-            fontFamily: "Inter, sans-serif",
-            dropShadow: {
-                enabled: false,
-            },
-            toolbar: {
-                show: false,
-            },
-            foreColor: isDarkMode ? '#f9fafb' : '#111827',
-        },
-        colors: assetColors,
-        tooltip: {
-            enabled: true,
-            x: {
-                show: false,
-            },
-            theme: isDarkMode ? 'dark' : 'light',
-        },
-        dataLabels: {
-            enabled: false,
-        },
-        stroke: {
-            width: 6,
-            curve: "smooth",
-        },
-        grid: {
-            show: true,
-            strokeDashArray: 4,
-            padding: {
-                left: 2,
-                right: 2,
-                top: -26,
-            },
-            borderColor: isDarkMode ? '#374151' : '#e5e7eb',
-        },
-        series: assetNames.map((assetName: string, colIndex: number) => ({
-            name: assetName,
-            data: dataRows.map((row: number[]) => row[colIndex] || null),
-        })),
-        legend: {
-            show: true,
-            labels: {
-                colors: isDarkMode ? '#f9fafb' : '#111827',
-            },
-        },
-        xaxis: {
-            categories: dataDates.length > 0 
-                ? dataDates.map(date => date.toLocaleDateString())
-                : dataRows.map((_: number[], index: number) => `Event ${index + 1}`),
-            labels: {
-                show: false,
-                style: {
-                    fontFamily: "Inter, sans-serif",
-                    colors: isDarkMode ? '#f9fafb' : '#111827',
-                },
-            },
-            axisBorder: {
-                show: false,
-            },
-            axisTicks: {
-                show: false,
-            },
-        },
-        yaxis: {
-            show: true,
-            labels: {
-                formatter: function (value: number) {
-                    return value.toFixed(3);
-                },
-                style: {
-                    colors: isDarkMode ? '#f9fafb' : '#111827',
-                },
-            },
-        },
-    });
-
-    let separateChartOptions: ApexOptions[] = $derived(
-        assetNames.map((assetName, index) => {
-            const assetData = dataRows.map((row: number[]) => row[index] || null);
-            const validData = assetData.filter((val: number | null) => val !== null) as number[];
-            const minValue = Math.min(...validData);
-            const maxValue = Math.max(...validData);
-            const padding = (maxValue - minValue) * 0.1;
-
-            return {
-                chart: {
-                    height: "200px",
-                    type: "line",
-                    fontFamily: "Inter, sans-serif",
-                    dropShadow: {
-                        enabled: false,
-                    },
-                    toolbar: {
-                        show: false,
-                    },
-                    foreColor: isDarkMode ? '#f9fafb' : '#111827',
-                },
-                colors: [assetColors[index % assetColors.length]],
-                tooltip: {
-                    enabled: true,
-                    x: {
-                        show: false,
-                    },
-                    theme: isDarkMode ? 'dark' : 'light',
-                },
-                dataLabels: {
-                    enabled: false,
-                },
-                stroke: {
-                    width: 4,
-                    curve: "smooth",
-                },
-                grid: {
-                    show: true,
-                    strokeDashArray: 4,
-                    padding: {
-                        left: 2,
-                        right: 2,
-                        top: -26,
-                    },
-                    borderColor: isDarkMode ? '#374151' : '#e5e7eb',
-                },
-                series: [
-                    {
-                        name: assetName,
-                        data: assetData,
-                    },
-                ],
-                legend: {
-                    show: false,
-                },
-                title: {
-                    text: assetName,
-                    align: "left",
-                    style: {
-                        fontFamily: "Inter, sans-serif",
-                        fontWeight: "600",
-                        fontSize: "16px",
-                        color: isDarkMode ? '#f9fafb' : '#111827',
-                    },
-                },
-                xaxis: {
-                    categories: dataDates.length > 0 
-                        ? dataDates.map(date => date.toLocaleDateString())
-                        : dataRows.map((_: number[], index: number) => `Event ${index + 1}`),
-                    labels: {
-                        show: false,
-                        style: {
-                            fontFamily: "Inter, sans-serif",
-                            colors: isDarkMode ? '#f9fafb' : '#111827',
-                        },
-                    },
-                    axisBorder: {
-                        show: false,
-                    },
-                    axisTicks: {
-                        show: false,
-                    },
-                },
-                yaxis: {
-                    show: true,
-                    min: validData.length > 0 ? minValue - padding : undefined,
-                    max: validData.length > 0 ? maxValue + padding : undefined,
-                    labels: {
-                        formatter: function (value: number) {
-                            return value.toFixed(3);
-                        },
-                        style: {
-                            colors: isDarkMode ? '#f9fafb' : '#111827',
-                        },
-                    },
-                },
-            };
-        })
-    );
-    // Setup theme observer
-    $effect(() => {
-        const darkModeObserver = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                    isDarkMode = document.documentElement.classList.contains('dark');
-                }
-            });
-        });
-
-        darkModeObserver.observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ['class']
-        });
-
-        return () => {
-            darkModeObserver.disconnect();
-        };
-    });
-
-    // Refresh user shares when wallet connection changes
-    $effect(() => {
-        if (appKit && assetNames.length > 0) {
-            getUserShares();
-        }
-    });
-
-    async function getProvider() {
-        if (!appKit) {
-            console.log('AppKit not available, trying to reinitialize...');
-            if (browser) {
-                appKit = initializeAppKit();
-            }
-            if (!appKit) {
-                console.error('Failed to initialize AppKit');
-                return null;
-            }
-        }
-
-        console.log('AppKit available:', !!appKit);
-        console.log('AppKit methods:', Object.keys(appKit));
-
-        let provider;
-
-        // Try window.ethereum first as it usually works best for contract interactions
-        if (typeof window !== 'undefined' && window.ethereum) {
-            provider = window.ethereum;
-            console.log('Using window.ethereum as primary provider');
-        } else if (appKit.getProvider) {
-            provider = appKit.getProvider();
-            console.log('getProvider() returned:', provider);
-        } else if (appKit.universalProvider) {
-            provider = appKit.universalProvider;
-            console.log('Got provider via universalProvider');
-        } else if (appKit.getWalletProvider) {
-            provider = appKit.getWalletProvider();
-            console.log('Got provider via getWalletProvider');
-        } else if (appKit.provider) {
-            provider = appKit.provider;
-            console.log('Got provider via .provider property');
-        }
-
-        if (!provider) {
-            console.error('No provider available');
-            console.log('Available appKit properties:', Object.keys(appKit));
-            return null;
-        }
-
-        console.log('Provider found:', provider);
-        return provider;
-    }
-
-    async function showTransactionPreview(type: 'buy' | 'sell') {
-        if (!appKit || isInvalid) return;
-
+    const handleTransaction = async (type: 'buy' | 'sell') => {
+        if (!appKit || isInvalid || !contractAddress) return;
         try {
-            if (!contractAddress) {
-                console.error('No contract address available');
-                return;
-            }
-
-            const provider = await getProvider();
+            const provider = getProvider();
             if (!provider) return;
-
             const ethersProvider = new ethers.BrowserProvider(provider);
             const assetIndex = assetNames.indexOf(selectedAsset);
-
-            if (assetIndex === -1) {
-                console.error('Selected asset not found');
-                return;
-            }
-
+            if (assetIndex === -1) return;
             const cost = await getTransactionCost(assetIndex, amount.toString(), ethersProvider, contractAddress);
             if (cost) {
                 transactionCost = cost.cost;
@@ -650,93 +139,47 @@
         } catch (error) {
             console.error('Error calculating transaction cost:', error);
         }
-    }
+    };
 
-    async function confirmTransaction() {
-        if (!pendingTransaction || !transactionCost) return;
-
-        if (!contractAddress) {
-            console.error('No contract address available');
-            return;
-        }
-
-        const caipAddress = appKit.getCaipAddress();
-        if (!caipAddress) {
-            console.log('Wallet not connected');
-            return;
-        }
-
-        const address = caipAddress.split(':')[2]; // Extract address from CAIP format
-
+    const confirmTransaction = async () => {
+        if (!pendingTransaction || !transactionCost || !contractAddress) return;
+        const caipAddress = appKit?.getCaipAddress();
+        if (!caipAddress) return;
+        const address = caipAddress.split(':')[2];
+        
         try {
-            const provider = await getProvider();
+            const provider = getProvider();
             if (!provider) return;
-
             const ethersProvider = new ethers.BrowserProvider(provider);
             const signer = await ethersProvider.getSigner();
-
-            // Check allowance first
+            
             const allowanceInfo = await checkAllowance(address, ethersProvider, contractAddress, chainId);
             if (!allowanceInfo) return;
-
+            
             const requiredAmount = parseFloat(transactionCost);
             const currentAllowance = parseFloat(allowanceInfo.allowance);
-
-            console.log('Required amount:', requiredAmount);
-            console.log('Current allowance:', currentAllowance);
-
-            // Check token balance first
-            const tokenBalance = await getTokenBalance(address, chainId, ethersProvider);
-            if (!tokenBalance) {
-                console.error('Could not get token balance');
-                return;
-            }
-
-            const currentBalance = parseFloat(tokenBalance.balance);
-            console.log('Current balance:', currentBalance);
-
-            if (currentBalance < requiredAmount) {
-                console.error('Insufficient token balance');
-                alert(`Insufficient balance. Required: ${requiredAmount.toFixed(4)} ${tokenBalance.symbol}, Available: ${currentBalance.toFixed(4)} ${tokenBalance.symbol}`);
-                return;
-            }
-
-            // If insufficient allowance, approve first
+            
             if (currentAllowance < requiredAmount) {
-                console.log('Insufficient allowance, requesting approval...');
                 isApproving = true;
-
-                // Approve a bit more than needed to avoid future approvals
-                const approveAmount = (requiredAmount * 2).toString();
-                const approvalSuccess = await approveTokens(address, approveAmount, signer, contractAddress, chainId);
-
+                const approvalSuccess = await approveTokens(address, (requiredAmount * 2).toString(), signer, contractAddress, chainId);
                 isApproving = false;
-
-                if (!approvalSuccess) {
-                    console.error('Token approval failed');
-                    return;
-                }
+                if (!approvalSuccess) return;
             }
-
-            // Now execute the transaction
+            
             const assetIndex = assetNames.indexOf(selectedAsset);
             let success = false;
-
+            
             if (pendingTransaction === 'buy') {
                 isBuying = true;
                 success = await buyShares(assetIndex, amount.toString(), signer, contractAddress);
                 isBuying = false;
-            } else if (pendingTransaction === 'sell') {
+            } else {
                 isSelling = true;
                 success = await sellShares(assetIndex, amount.toString(), signer, contractAddress);
                 isSelling = false;
             }
-
-            if (success) {
-                console.log(`${pendingTransaction} successful`);
-                await Promise.all([getContractPrice(), getMarginalPrices(), getUserShares()]);
-            }
-
+            
+            if (success) await Promise.all([getContractPrice(), getMarginalPrices(), getUserShares()]);
         } catch (error) {
             console.error(`Error during ${pendingTransaction}:`, error);
         } finally {
@@ -747,69 +190,94 @@
             isSelling = false;
             isApproving = false;
         }
-    }
+    };
 
-    async function handleBuy(event: Event) {
-        event.preventDefault();
-        await showTransactionPreview('buy');
-    }
-
-    async function handleSell(event: Event) {
-        event.preventDefault();
-        await showTransactionPreview('sell');
-    }
-
-    async function handleRedeem() {
-        if (!appKit || isRedeeming) return;
-
-        if (!contractAddress) {
-            console.error('No contract address available');
-            return;
-        }
-
+    const handleRedeem = async () => {
+        if (!appKit || isRedeeming || !contractAddress) return;
         isRedeeming = true;
-
         try {
-            // Check if wallet is connected
             const caipAddress = appKit.getCaipAddress();
-            if (!caipAddress) {
-                console.log('Wallet not connected, opening connection modal...');
-                await appKit.open();
-                return;
-            }
-
-            const provider = await getProvider();
+            if (!caipAddress) { await appKit.open(); return; }
+            const provider = getProvider();
             if (!provider) return;
-
-            // Ensure provider is connected
-            console.log('Provider object:', provider);
-            console.log('Provider methods:', Object.getOwnPropertyNames(provider));
-            console.log('Provider prototype methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(provider)));
-
-            // Skip provider connection and try to use it directly
-            console.log('Provider session:', provider.session);
-            console.log('Provider connected:', provider.connected);
-            console.log('Trying to use provider directly without calling connect...');
-
-            const ethersProvider = new ethers.BrowserProvider(provider);
-            const signer = await ethersProvider.getSigner();
-
-            console.log('Redeeming payout...');
+            const signer = await new ethers.BrowserProvider(provider).getSigner();
             const success = await redeemPayout(signer, contractAddress);
-
-            if (success) {
-                console.log('Redeem successful');
-                await Promise.all([getContractPrice(), getMarginalPrices(), getUserShares()]);
-            } else {
-                showMarketNotResolved = true; // Show the modal if redeem fails
-            }
+            if (success) await Promise.all([getContractPrice(), getMarginalPrices(), getUserShares()]);
+            else showMarketNotResolved = true;
         } catch (error) {
             console.error('Error during redeem:', error);
-            showMarketNotResolved = true; // Show the modal if redeem fails due to error
+            showMarketNotResolved = true;
         } finally {
             isRedeeming = false;
         }
-    }
+    };
+
+    $effect(() => { chainId = get(currentChainId); currentChainConfig = get(currentChain); });
+    $effect(() => { if (chainId && dataset) loadMarketData(); });
+    $effect(() => { getContractPrice(); });
+    $effect(() => { isDarkMode = document.documentElement.classList.contains('dark'); });
+    $effect(() => { if (appKit && assetNames.length > 0) getUserShares(); });
+
+    const decrement = () => {
+        if (amount > 1) amount -= 1;
+    };
+
+    const increment = () => {
+        amount += 1;
+    };
+
+    const handleBuy = async () => {
+        await handleTransaction('buy');
+    };
+
+    const handleSell = async () => {
+        await handleTransaction('sell');
+    };
+
+    onMount(loadMarketData);
+
+    const chartColors = $derived(getChartColors(Math.max(10, assetNames.length)));
+    const options: ApexOptions = $derived({
+        colors: chartColors.slice(0, 2),
+        series: [
+            { name: "Current percentage", data: assetNames.map((name, i) => ({ x: name, y: currentAllocationData[i] })) },
+            { name: "Margin price", data: assetNames.map((name, i) => ({ x: name, y: marginalPrices[i] })) }
+        ],
+        chart: { type: "bar", height: "320px", toolbar: { show: false }, foreColor: isDarkMode ? '#f9fafb' : '#111827' },
+        plotOptions: { bar: { horizontal: false, columnWidth: "70%", borderRadius: 8 } },
+        tooltip: { shared: true, intersect: false, theme: isDarkMode ? 'dark' : 'light' },
+        grid: { show: false },
+        dataLabels: { enabled: false },
+        legend: { show: false },
+        xaxis: { labels: { style: { colors: isDarkMode ? '#f9fafb' : '#111827' } }, axisBorder: { show: false }, axisTicks: { show: false } },
+        yaxis: { labels: { formatter: (value: number) => value.toFixed(3), style: { colors: isDarkMode ? '#f9fafb' : '#111827' } } }
+    });
+
+    const lineChartOptions: ApexOptions = $derived({
+        chart: { height: "320px", type: "line", toolbar: { show: false }, foreColor: isDarkMode ? '#f9fafb' : '#111827' },
+        colors: chartColors,
+        series: assetNames.map((name, i) => ({ name, data: dataRows.map(row => row[i] || null) })),
+        stroke: { width: 6, curve: "smooth" },
+        grid: { borderColor: isDarkMode ? '#374151' : '#e5e7eb' },
+        legend: { labels: { colors: isDarkMode ? '#f9fafb' : '#111827' } },
+        tooltip: { shared: true, intersect: false, theme: isDarkMode ? 'dark' : 'light' },
+        xaxis: { categories: dataDates.length ? dataDates.map(d => d.toLocaleDateString()) : dataRows.map((_, i) => `Event ${i + 1}`), labels: { show: false } },
+        yaxis: { labels: { formatter: (value: number) => value.toFixed(3), style: { colors: isDarkMode ? '#f9fafb' : '#111827' } } }
+    });
+
+    const separateChartOptions = $derived(
+        assetNames.map((name, index) => ({
+            chart: { height: "200px", type: "line" as const, toolbar: { show: false }, foreColor: isDarkMode ? '#f9fafb' : '#111827' },
+            colors: [chartColors[index % chartColors.length]],
+            series: [{ name, data: dataRows.map(row => row[index] || null) }],
+            stroke: { width: 3, curve: "smooth" as const },
+            grid: { borderColor: isDarkMode ? '#374151' : '#e5e7eb' },
+            title: { text: name, style: { color: isDarkMode ? '#f9fafb' : '#111827' } },
+            tooltip: { shared: false, intersect: false, theme: isDarkMode ? 'dark' : 'light' },
+            xaxis: { categories: dataDates.length ? dataDates.map(d => d.toLocaleDateString()) : dataRows.map((_, i) => `Event ${i + 1}`), labels: { show: false } },
+            yaxis: { labels: { formatter: (value: number) => value.toFixed(3), style: { colors: isDarkMode ? '#f9fafb' : '#111827' } } }
+        }))
+    );
 </script>
 
 <div class="grid grid-cols-3 items-start gap-8 p-8 theme-surface min-h-screen">

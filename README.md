@@ -24,18 +24,21 @@ A decentralized prediction market application built with SvelteKit, enabling use
 ### Setup
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd market
    ```
 
 2. **Install dependencies**
+
    ```bash
    bun install
    ```
 
 3. **Environment Variables**
    Create a `.env` file in the root directory:
+
    ```env
    VITE_REOWN_PROJECT_ID=your_reown_project_id
    ```
@@ -56,11 +59,13 @@ The application will be available at `http://localhost:5173`
 Access `/demo-config` to configure the demo environment:
 
 #### Driver Points Configuration
+
 - **Enable/Disable**: Toggle driver data availability
 - **Data Limiter**: Set maximum accessible data rows (-1 for unlimited)
 - **Custom Data**: Override default data with CSV format
 
 #### Crypto Prices Configuration
+
 - **Enable/Disable**: Toggle cryptocurrency data availability
 - **Data Limiter**: Control data accessibility for demos
 - **Custom Data**: Inject custom market data
@@ -70,13 +75,17 @@ Access `/demo-config` to configure the demo environment:
 The application provides RESTful endpoints for data management:
 
 #### GET `/api/data`
+
 Retrieve market data with query parameters:
+
 - `type`: `'drivers'` or `'crypto'`
 - `latest`: `'true'` for most recent data only
 - `oracle`: `'true'` for blockchain-formatted data
 
 #### POST `/api/data`
+
 Update demo configuration:
+
 ```json
 {
   "driverPoints": {
@@ -88,7 +97,9 @@ Update demo configuration:
 ```
 
 #### PUT `/api/data`
+
 Reset configuration to defaults:
+
 ```json
 {
   "reset": true
@@ -120,6 +131,7 @@ src/
 ### Smart Contract Integration
 
 The application interacts with a prediction market smart contract featuring:
+
 - **Logarithmic Market Scoring Rules**: Efficient price discovery mechanism
 - **Collateral Token Support**: ERC-20 token-based trading
 - **Automated Market Making**: Self-balancing liquidity provision
@@ -142,10 +154,10 @@ The application is configured for Vercel deployment:
 2. **Environment Variables**: Set `VITE_REOWN_PROJECT_ID` in Vercel dashboard
 3. **Deploy**: Automatic deployment on push to main branch
 
-
 ## 📝 API Documentation
 
 Detailed API documentation is available in [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md), including:
+
 - Endpoint specifications
 - Request/response formats
 - Configuration options

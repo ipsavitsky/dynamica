@@ -10,228 +10,82 @@
 	import { onMount } from 'svelte';
 
 	let { children } = $props();
-
 	const appKit = initializeAppKit();
-
 	let address = $state<string | null>(null);
 	let tokenBalance = $state<{ balance: string; symbol: string } | null>(null);
 	let isMinting = $state(false);
 	let darkMode = $state(false);
 
-	onMount(() => {
-		// Check for saved theme preference or default to light mode
-		const savedTheme = localStorage.getItem('theme');
-		if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-			darkMode = true;
-			document.documentElement.classList.add('dark');
-		} else {
-			darkMode = false;
-			document.documentElement.classList.remove('dark');
-		}
+	const formatAddress = (addr: string) => {
+		if (!addr) return '';
+		return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+	};
 
-		// Listen for wallet network changes
-		if (browser && window.ethereum) {
-			// Sync initial wallet state
-			syncWalletState();
-			
-			window.ethereum.on('chainChanged', (chainId: string) => {
-				console.log('Wallet chain changed to:', chainId);
-				// Convert hex chainId to decimal
-				const decimalChainId = parseInt(chainId, 16);
-				console.log('Decimal chain ID:', decimalChainId);
-				
-				// Update our state to match the wallet
-				switchChain(decimalChainId);
-				
-				// Refetch balance if user is connected
-				if (address) {
-					fetchTokenBalance(address);
-				}
-			});
-
-			// Listen for account changes
-			window.ethereum.on('accountsChanged', (accounts: string[]) => {
-				console.log('Wallet accounts changed:', accounts);
-				if (accounts.length > 0) {
-					// Update address and refetch balance
-					address = accounts[0];
-					fetchTokenBalance(accounts[0]);
-				} else {
-					// User disconnected
-					address = null;
-					tokenBalance = null;
-				}
-			});
-		}
-	});
-
-	function toggleTheme() {
+	const toggleTheme = () => {
 		darkMode = !darkMode;
-		if (darkMode) {
-			document.documentElement.classList.add('dark');
-			localStorage.setItem('theme', 'dark');
-		} else {
-			document.documentElement.classList.remove('dark');
-			localStorage.setItem('theme', 'light');
-		}
-	}
+		document.documentElement.classList.toggle('dark', darkMode);
+		localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+	};
 
-	$effect(() => {
-		if (appKit) {
-			const unsubscribe = appKit.subscribeAccount(acc => {
-				address = acc.address ?? null;
-				if (address) {
-					fetchTokenBalance(address);
-				} else {
-					tokenBalance = null;
-				}
-			});
+	const getProvider = () => window.ethereum || appKit?.getProvider?.('eip155');
 
-			return unsubscribe;
-		}
-	});
-
-	// Refetch balance when chain changes
-	$effect(() => {
-		if (address && appKit) {
-			const chainId = get(currentChainId);
-			console.log('Chain changed to:', chainId, 'refetching balance');
-			fetchTokenBalance(address);
-		}
-	});
-
-	async function getProvider() {
-		if (!appKit) {
-			console.log('AppKit not available');
-			return null;
-		}
-
-		console.log('AppKit available:', !!appKit);
-		console.log('AppKit methods:', Object.keys(appKit));
-
-		let provider;
-
-		// Try window.ethereum first as it usually works best for contract interactions
-		if (typeof window !== 'undefined' && window.ethereum) {
-			provider = window.ethereum;
-			console.log('Using window.ethereum as primary provider');
-		} else if (appKit.getProvider) {
-			provider = appKit.getProvider('eip155');
-			console.log('getProvider() returned:', provider);
-		} else if (appKit.getWalletProvider) {
-			provider = appKit.getWalletProvider();
-			console.log('Got provider via getWalletProvider');
-		}
-
-		if (!provider) {
-			console.error('No provider available');
-			console.log('Available appKit properties:', Object.keys(appKit));
-			return null;
-		}
-
-		console.log('Provider found:', provider);
-		return provider;
-	}
-
-	async function fetchTokenBalance(userAddress: string) {
-		if (!appKit) {
-			console.log('AppKit not available');
-			return;
-		}
-
+	const fetchTokenBalance = async (userAddress: string) => {
 		try {
-			console.log('Fetching token balance for:', userAddress);
-
-			// Add a small delay to ensure wallet is properly connected
-			await new Promise(resolve => setTimeout(resolve, 500));
-
-			const provider = await getProvider();
-			if (!provider) {
-				console.log('No provider available');
-				return;
-			}
-
-			// Get current chain ID
-			const chainId = get(currentChainId);
-			console.log('Current chain ID for balance fetch:', chainId);
-
-			console.log('Fetching token balance with dedicated provider');
-			const balance = await getTokenBalance(userAddress, chainId);
-			console.log('Token balance fetched:', balance);
+			const balance = await getTokenBalance(userAddress, get(currentChainId));
 			tokenBalance = balance;
 		} catch (error) {
 			console.error('Failed to fetch token balance:', error);
-			// Set a fallback value instead of null to show something in the UI
-			tokenBalance = {
-				balance: '0.0',
-				symbol: 'MOCK'
-			};
+			tokenBalance = { balance: '0.0', symbol: 'MOCK' };
 		}
-	}
+	};
 
-	async function handleMint() {
+	const handleMint = async () => {
 		if (!address || !appKit || isMinting) return;
-
 		isMinting = true;
-
 		try {
-			console.log('Starting mint process...');
-
-			const provider = await getProvider();
-			if (!provider) {
-				console.error('No provider available for minting');
-				return;
-			}
-
-			console.log('Provider found, creating signer...');
-			const ethersProvider = new ethers.BrowserProvider(provider);
-			const signer = await ethersProvider.getSigner();
-
-			console.log('Signer created, minting 10 tokens...');
-			const chainId = get(currentChainId);
-			const success = await mintTokens(address, '10', signer, chainId);
-
-			if (success) {
-				console.log('Mint successful, refreshing balance...');
-				// Refresh balance after successful mint
-				await fetchTokenBalance(address);
-			} else {
-				console.error('Mint failed');
-			}
+			const provider = getProvider();
+			if (!provider) return;
+			const signer = await new ethers.BrowserProvider(provider).getSigner();
+			const success = await mintTokens(address, '10', signer, get(currentChainId));
+			if (success) await fetchTokenBalance(address);
 		} catch (error) {
 			console.error('Error during mint:', error);
 		} finally {
 			isMinting = false;
 		}
-	}
+	};
 
+	onMount(() => {
+		const savedTheme = localStorage.getItem('theme');
+		darkMode = savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+		document.documentElement.classList.toggle('dark', darkMode);
 
-	async function syncWalletState() {
-		if (!browser || !window.ethereum) return;
-		
-		try {
-			// Get current chain ID from wallet
-			const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-			const decimalChainId = parseInt(chainId, 16);
-			console.log('Syncing wallet state - current chain:', decimalChainId);
-			
-			// Update our state to match the wallet
-			switchChain(decimalChainId);
-			
-			// Get current accounts
-			const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-			if (accounts.length > 0) {
-				address = accounts[0];
-				fetchTokenBalance(accounts[0]);
-			}
-		} catch (error) {
-			console.error('Failed to sync wallet state:', error);
+		if (browser && window.ethereum) {
+			window.ethereum.on('chainChanged', (chainId: string) => {
+				switchChain(parseInt(chainId, 16));
+				if (address) fetchTokenBalance(address);
+			});
+			window.ethereum.on('accountsChanged', (accounts: string[]) => {
+				address = accounts[0] || null;
+				if (address) fetchTokenBalance(address);
+				else tokenBalance = null;
+			});
 		}
-	}
+	});
 
-	function formatAddress(addr: string) {
-		return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-	}
+	$effect(() => {
+		if (appKit) {
+			return appKit.subscribeAccount(acc => {
+				address = acc.address ?? null;
+				if (address) fetchTokenBalance(address);
+				else tokenBalance = null;
+			});
+		}
+	});
+
+	$effect(() => {
+		if (address) fetchTokenBalance(address);
+	});
 </script>
 
 <div class="theme-surface min-h-screen transition-colors duration-300">
