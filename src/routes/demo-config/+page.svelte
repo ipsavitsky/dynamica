@@ -1,10 +1,13 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount } from "svelte";
 
-  let config = { driverPoints: { enabled: true, customData: '', dataLimiter: -1 }, cryptoPrices: { enabled: true, customData: '', dataLimiter: -1 } };
+  let config = {
+    driverPoints: { enabled: true, customData: "", dataLimiter: -1 },
+    cryptoPrices: { enabled: true, customData: "", dataLimiter: -1 },
+  };
   let currentData: any = null;
   let loading = false;
-  let message = '';
+  let message = "";
 
   const fetchData = async (url: string, options?: RequestInit) => {
     const response = await fetch(url, options);
@@ -13,45 +16,72 @@
 
   const fetchCurrentData = async () => {
     loading = true;
-    try { currentData = await fetchData('/api/data'); } 
-    catch (error) { message = 'Error fetching data: ' + error; }
-    finally { loading = false; }
+    try {
+      currentData = await fetchData("/api/data");
+    } catch (error) {
+      message = "Error fetching data: " + error;
+    } finally {
+      loading = false;
+    }
   };
 
   const updateConfig = async () => {
     loading = true;
     try {
-      const result = await fetchData('/api/data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
-      message = result.success ? 'Configuration updated successfully!' : 'Failed to update configuration';
+      const result = await fetchData("/api/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      });
+      message = result.success
+        ? "Configuration updated successfully!"
+        : "Failed to update configuration";
       if (result.success) await fetchCurrentData();
-    } catch (error) { message = 'Error updating configuration: ' + error; }
-    finally { loading = false; }
+    } catch (error) {
+      message = "Error updating configuration: " + error;
+    } finally {
+      loading = false;
+    }
   };
 
   const resetConfig = async () => {
     loading = true;
     try {
-      const result = await fetchData('/api/data', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reset: true }) });
-      if (result.success) { config = result.config; message = 'Configuration reset to defaults!'; await fetchCurrentData(); }
-      else message = 'Failed to reset configuration';
-    } catch (error) { message = 'Error resetting configuration: ' + error; }
-    finally { loading = false; }
+      const result = await fetchData("/api/data", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reset: true }),
+      });
+      if (result.success) {
+        config = result.config;
+        message = "Configuration reset to defaults!";
+        await fetchCurrentData();
+      } else message = "Failed to reset configuration";
+    } catch (error) {
+      message = "Error resetting configuration: " + error;
+    } finally {
+      loading = false;
+    }
   };
 
   const testEndpoint = async (type: string, latest?: boolean) => {
     loading = true;
     try {
-      const url = `/api/data?type=${type}${latest ? '&latest=true' : ''}`;
+      const url = `/api/data?type=${type}${latest ? "&latest=true" : ""}`;
       const data = await fetchData(url);
-      currentData = type === 'drivers' || type === 'crypto' ? { [type]: data } : data;
+      currentData =
+        type === "drivers" || type === "crypto" ? { [type]: data } : data;
       message = `Fetched ${type} data successfully!`;
-    } catch (error) { message = `Error testing ${type} endpoint: ${error}`; }
-    finally { loading = false; }
+    } catch (error) {
+      message = `Error testing ${type} endpoint: ${error}`;
+    } finally {
+      loading = false;
+    }
   };
 
   const simpleTest = () => {
-    message = 'Simple test executed successfully!';
-    console.log('Simple test function called');
+    message = "Simple test executed successfully!";
+    console.log("Simple test function called");
   };
 
   onMount(fetchCurrentData);
@@ -63,7 +93,7 @@
 
 <div class="container">
   <h1>Demo Configuration Panel</h1>
-  
+
   {#if message}
     <div class="message {message.includes('Error') ? 'error' : 'success'}">
       {message}
@@ -74,22 +104,29 @@
     <h2>Driver Points Configuration</h2>
     <div class="config-item">
       <label>
-        <input type="checkbox" bind:checked={config.driverPoints.enabled}>
+        <input type="checkbox" bind:checked={config.driverPoints.enabled} />
         Enable Driver Data
       </label>
     </div>
     <div class="config-item">
       <label>
         Data Limiter (-1 for no limit, sets max accessible row):
-        <input type="number" bind:value={config.driverPoints.dataLimiter} min="-1">
-        <small>This controls what's considered the "end" of the data for demo purposes</small>
+        <input
+          type="number"
+          bind:value={config.driverPoints.dataLimiter}
+          min="-1"
+        />
+        <small
+          >This controls what's considered the "end" of the data for demo
+          purposes</small
+        >
       </label>
     </div>
     <div class="config-item">
       <label>
         Custom Data (leave empty for default):
-        <textarea 
-          bind:value={config.driverPoints.customData} 
+        <textarea
+          bind:value={config.driverPoints.customData}
           placeholder="Enter CSV format data..."
           rows="5"
         ></textarea>
@@ -101,22 +138,29 @@
     <h2>Crypto Prices Configuration</h2>
     <div class="config-item">
       <label>
-        <input type="checkbox" bind:checked={config.cryptoPrices.enabled}>
+        <input type="checkbox" bind:checked={config.cryptoPrices.enabled} />
         Enable Crypto Data
       </label>
     </div>
     <div class="config-item">
       <label>
         Data Limiter (-1 for no limit, sets max accessible row):
-        <input type="number" bind:value={config.cryptoPrices.dataLimiter} min="-1">
-        <small>This controls what's considered the "end" of the data for demo purposes</small>
+        <input
+          type="number"
+          bind:value={config.cryptoPrices.dataLimiter}
+          min="-1"
+        />
+        <small
+          >This controls what's considered the "end" of the data for demo
+          purposes</small
+        >
       </label>
     </div>
     <div class="config-item">
       <label>
         Custom Data (leave empty for default):
-        <textarea 
-          bind:value={config.cryptoPrices.customData} 
+        <textarea
+          bind:value={config.cryptoPrices.customData}
           placeholder="Enter CSV format data..."
           rows="5"
         ></textarea>
@@ -126,13 +170,13 @@
 
   <div class="actions">
     <button on:click={updateConfig} disabled={loading}>
-      {loading ? 'Updating...' : 'Update Configuration'}
+      {loading ? "Updating..." : "Update Configuration"}
     </button>
     <button on:click={resetConfig} disabled={loading}>
-      {loading ? 'Resetting...' : 'Reset to Defaults'}
+      {loading ? "Resetting..." : "Reset to Defaults"}
     </button>
     <button on:click={fetchCurrentData} disabled={loading}>
-      {loading ? 'Refreshing...' : 'Refresh Data'}
+      {loading ? "Refreshing..." : "Refresh Data"}
     </button>
     <button on:click={simpleTest}>Simple Test</button>
   </div>
@@ -140,12 +184,23 @@
   <div class="test-section">
     <h2>Test Endpoints</h2>
     <div class="test-buttons">
-      <button on:click={() => testEndpoint('drivers')}>Test Drivers (All Accessible)</button>
-      <button on:click={() => testEndpoint('drivers', true)}>Test Drivers (Latest)</button>
-      <button on:click={() => testEndpoint('crypto')}>Test Crypto (All Accessible)</button>
-      <button on:click={() => testEndpoint('crypto', true)}>Test Crypto (Latest)</button>
-      <button on:click={() => testEndpoint('')}>Test Both (All Accessible)</button>
-      <button on:click={() => testEndpoint('', true)}>Test Both (Latest)</button>
+      <button on:click={() => testEndpoint("drivers")}
+        >Test Drivers (All Accessible)</button
+      >
+      <button on:click={() => testEndpoint("drivers", true)}
+        >Test Drivers (Latest)</button
+      >
+      <button on:click={() => testEndpoint("crypto")}
+        >Test Crypto (All Accessible)</button
+      >
+      <button on:click={() => testEndpoint("crypto", true)}
+        >Test Crypto (Latest)</button
+      >
+      <button on:click={() => testEndpoint("")}
+        >Test Both (All Accessible)</button
+      >
+      <button on:click={() => testEndpoint("", true)}>Test Both (Latest)</button
+      >
     </div>
   </div>
 
@@ -162,7 +217,8 @@
     max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family:
+      -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
 
   h1 {
@@ -301,4 +357,4 @@
     max-height: 400px;
     overflow-y: auto;
   }
-</style> 
+</style>
