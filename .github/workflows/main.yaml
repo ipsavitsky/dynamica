@@ -1,0 +1,10 @@
+name: main_workflow
+
+on:
+  push:
+    branches:
+      - "**"
+
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yaml
