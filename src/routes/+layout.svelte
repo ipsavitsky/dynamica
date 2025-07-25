@@ -9,7 +9,7 @@
     Button,
   } from "flowbite-svelte";
   import { initializeAppKit } from "$lib/appkit";
-  import { getTokenBalance, mintTokens } from "$lib/utils";
+  import { getTokenBalance, mintTokens } from "$lib/blockchain";
   import { browser } from "$app/environment";
   import { currentChainId, switchChain } from "$lib/chainManager";
   import { get } from "svelte/store";

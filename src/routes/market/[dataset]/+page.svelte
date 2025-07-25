@@ -2,15 +2,12 @@
   import { onMount } from "svelte";
   import type { ApexOptions } from "apexcharts";
   import { Chart } from "@flowbite-svelte-plugins/chart";
-  import {
-    Card,
-    Button,
-    Label,
-    Input,
-    Alert,
-    Select,
-    Modal,
-  } from "flowbite-svelte";
+  import { Card, Modal } from "flowbite-svelte";
+  import { Button } from "$lib/components/ui/button/index";
+  import { Input } from "$lib/components/ui/input/index";
+  import { Alert } from "$lib/components/ui/alert/index";
+  import { Label } from "$lib/components/ui/label/index";
+  import * as Select from "$lib/components/ui/select/index";
   import { ethers } from "ethers";
   import { page } from "$app/stores";
   import { dataService, type DataPoint } from "$lib/api";
@@ -24,7 +21,7 @@
     getTransactionCost,
     getTokenBalance,
     getChainProvider,
-  } from "$lib/utils";
+  } from "$lib/blockchain";
   import { initializeAppKit } from "$lib/appkit";
   import { browser } from "$app/environment";
   import { getChartColors } from "$lib/theme";
@@ -35,8 +32,8 @@
   const { dataset } = $page.params;
   let chainId = $state(get(currentChainId));
   let currentChainConfig = $state(get(currentChain));
-  let contractAddress = $derived(getMarketAddress(chainId, dataset));
-  let marketConfig = $derived(getMarketConfig(chainId, dataset));
+  let contractAddress = $derived(getMarketAddress(chainId, dataset!));
+  let marketConfig = $derived(getMarketConfig(chainId, dataset!));
 
   let assetNames = $state<string[]>([]);
   let dataRows = $state<number[][]>([]);
@@ -501,66 +498,57 @@
           <p class="text-s theme-text-secondary font-normal">per share</p>
         </div>
       </div>
-      <Label class="theme-text mb-4 space-y-2">
-        <span>Asset</span>
-        <Select
-          bind:value={selectedAsset}
-          items={selectItems}
-          class="theme-card theme-border theme-text"
-        />
-      </Label>
-      <Label class="theme-text mb-4 space-y-2">
-        <span>Shares</span>
-        <div class="relative">
-          <Input
-            bind:value={amount}
-            type="number"
-            name="amount"
-            class="theme-card theme-border theme-text w-full pe-24"
-            required
-          />
-          <div class="absolute inset-y-0 end-0 flex items-center pe-2">
-            <Button
-              onclick={decrement}
-              type="button"
-              color="light"
-              class="theme-card theme-text !p-1.5 text-xs !font-normal"
-              >-1</Button
+      <div class="theme-text mb-4 space-y-2">
+        <Label for="assetSelection">Assets</Label>
+        <div id="assetSelection">
+          <Select.Root type="single" bind:value={selectedAsset}>
+            <Select.Trigger
+              class="theme-card theme-border theme-text w-full text-left"
             >
-            <Button
-              onclick={increment}
-              type="button"
-              color="light"
-              class="theme-card theme-text ms-1 !p-1.5 text-xs !font-normal"
-              >+1</Button
-            >
-          </div>
+              {selectedAsset !== undefined ? selectedAsset : "Select Outcome"}
+            </Select.Trigger>
+            <Select.Content>
+              {#each selectItems as item}
+                <Select.Item value={item.value}>{item.name}</Select.Item>
+              {/each}
+            </Select.Content>
+          </Select.Root>
+        </div>
+      </div>
+      <div class="theme-text mb-4 space-y-2">
+        <Label for="amountInput">Shares</Label>
+        <div
+          id="amountInput"
+          class="flex w-full max-w-sm items-center space-x-2"
+        >
+          <Input bind:value={amount} type="number" name="amount" required />
+          <Button onclick={decrement} type="button" color="light">-1</Button>
+          <Button onclick={increment} type="button" color="light">+1</Button>
         </div>
         {#if isInvalid}
           <Alert>Shares must be a positive number.</Alert>
         {/if}
-      </Label>
+      </div>
       <div class="mb-4 grid grid-cols-2 gap-4">
         <Button
           onclick={handleBuy}
-          size="xl"
+          size="lg"
           class="w-full"
           disabled={isInvalid || isBuying}
-          color="green">{isBuying ? "Buying..." : "Buy"}</Button
+          >{isBuying ? "Buying..." : "Buy"}</Button
         >
         <Button
           onclick={handleSell}
-          size="xl"
+          size="lg"
           class="w-full"
           disabled={isInvalid || isSelling}
-          color="red">{isSelling ? "Selling..." : "Sell"}</Button
+          variant="destructive">{isSelling ? "Selling..." : "Sell"}</Button
         >
       </div>
       <Button
         onclick={handleRedeem}
-        size="xl"
+        size="lg"
         class="w-full"
-        color="orange"
         disabled={isRedeeming}>{isRedeeming ? "Redeeming..." : "Redeem"}</Button
       >
     </form>

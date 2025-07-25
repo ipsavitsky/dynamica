@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Card, Select } from "flowbite-svelte";
+  import { Card } from "flowbite-svelte";
+  import * as Select from "$lib/components/ui/select/index";
   import {
     currentChainId,
     currentChain,
@@ -23,21 +24,23 @@
     currentChainConfig = get(currentChain);
   });
 
-  const handleChainChange = async (event: Event) => {
-    const newChainId = parseInt((event.target as HTMLSelectElement).value);
+  const handleChainChange = async (newChainIdStr: string | undefined) => {
+    if (newChainIdStr === undefined) return;
+    const newChainId = parseInt(newChainIdStr);
     if (switchChain(newChainId)) {
       selectedChainId = newChainId;
       try {
         await switchWalletNetwork(newChainId);
-      } catch {}
+      } catch {
+        // ignore
+      }
     }
   };
 
   const getMarketUrl = (marketId: string) => `/market/${marketId}`;
 
-  const isMarketDeployed = $derived((marketId: string) =>
-    isMarketAvailable(selectedChainId, marketId),
-  );
+  const isMarketDeployed = (marketId: string) =>
+    isMarketAvailable(selectedChainId, marketId);
 </script>
 
 <div class="theme-surface min-h-screen transition-colors duration-300">
@@ -55,18 +58,25 @@
         >
           Select Chain
         </label>
-        <Select
-          id="chain-select"
-          bind:value={selectedChainId}
-          onchange={(event) => handleChainChange(event)}
-          class="theme-card theme-border theme-text"
+        <Select.Root
+          type="single"
+          onValueChange={handleChainChange}
+          value={selectedChainId.toString()}
         >
-          {#each chains as chain}
-            <option value={chain.id}>
-              {chain.name} ({chain.nativeCurrency.symbol})
-            </option>
-          {/each}
-        </Select>
+          <Select.Trigger
+            class="theme-card theme-border theme-text w-full text-left"
+          >
+            {chains.find((c) => c.id === selectedChainId)?.name ??
+              "Select a chain..."}
+          </Select.Trigger>
+          <Select.Content>
+            {#each chains as chain}
+              <Select.Item value={chain.id.toString()} label={chain.name}>
+                {chain.name} ({chain.nativeCurrency.symbol})
+              </Select.Item>
+            {/each}
+          </Select.Content>
+        </Select.Root>
       </div>
     </div>
 
