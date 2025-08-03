@@ -1,18 +1,17 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { ApexOptions } from "apexcharts";
-  import { Chart } from "@flowbite-svelte-plugins/chart";
-  import {
-    Card,
-    Button,
-    Label,
-    Input,
-    Alert,
-    Select,
-    Modal,
-  } from "flowbite-svelte";
+  import * as Card from "$lib/components/ui/card/index";
+  import * as Dialog from "$lib/components/ui/dialog/index";
+  import { Button } from "$lib/components/ui/button/index";
+  import { Input } from "$lib/components/ui/input/index";
+  import { Alert } from "$lib/components/ui/alert/index";
+  import { Label } from "$lib/components/ui/label/index";
+  import * as Select from "$lib/components/ui/select/index";
+  import * as Chart from "$lib/components/ui/chart/index";
+  import { BarChart, LineChart } from "layerchart";
+  import { scaleBand } from "d3-scale";
   import { ethers } from "ethers";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { dataService, type DataPoint } from "$lib/api";
   import { contractABI } from "$lib/abi";
   import {
@@ -24,19 +23,17 @@
     getTransactionCost,
     getTokenBalance,
     getChainProvider,
-  } from "$lib/utils";
+  } from "$lib/blockchain";
   import { initializeAppKit } from "$lib/appkit";
   import { browser } from "$app/environment";
-  import { getChartColors } from "$lib/theme";
+  import { getChartColor } from "$lib/theme";
   import { getMarketAddress, getMarketConfig } from "$lib/config/index";
   import { currentChainId, currentChain } from "$lib/chainManager";
-  import { get } from "svelte/store";
+  import ChartColumnBig from "@lucide/svelte/icons/chart-column-big";
 
-  const { dataset } = $page.params;
-  let chainId = $state(get(currentChainId));
-  let currentChainConfig = $state(get(currentChain));
-  let contractAddress = $derived(getMarketAddress(chainId, dataset));
-  let marketConfig = $derived(getMarketConfig(chainId, dataset));
+  const { dataset } = page.params;
+  let contractAddress = getMarketAddress(currentChainId, dataset!);
+  let marketConfig = getMarketConfig(currentChainId, dataset!);
 
   let assetNames = $state<string[]>([]);
   let dataRows = $state<number[][]>([]);
@@ -50,7 +47,6 @@
   let amount = $state(1);
   let decimals = $state(18);
   let combinedMode = $state(false);
-  let isDarkMode = $state(false);
   let isBuying = $state(false);
   let isSelling = $state(false);
   let isRedeeming = $state(false);
@@ -83,7 +79,7 @@
       const contract = new ethers.Contract(
         contractAddress,
         contractABI,
-        getChainProvider(chainId),
+        getChainProvider(currentChainId),
       );
       const outcomeSlotCount = await contract.outcomeSlotCount();
       const deltaOutcomeAmounts = new Array(Number(outcomeSlotCount)).fill(0);
@@ -109,7 +105,7 @@
       const contract = new ethers.Contract(
         contractAddress,
         contractABI,
-        getChainProvider(chainId),
+        getChainProvider(currentChainId),
       );
       const prices = await Promise.all(
         assetNames.map((_, i) => contract.calcMarginalPrice(i)),
@@ -137,7 +133,7 @@
       const contract = new ethers.Contract(
         contractAddress,
         contractABI,
-        getChainProvider(chainId),
+        getChainProvider(currentChainId),
       );
       const shares = await Promise.all(
         assetNames.map((_, i) => contract.userShares(userAddress, i)),
@@ -157,7 +153,7 @@
       error = null;
       if (!marketConfig?.enabled)
         throw new Error(
-          `Market "${dataset}" is not available on ${currentChainConfig?.name || "this chain"}.`,
+          `Market "${dataset}" is not available on ${currentChain?.name || "this chain"}.`,
         );
 
       const data =
@@ -172,13 +168,12 @@
       if (data.rows.length > 0)
         currentAllocationData = data.rows[data.rows.length - 1];
       selectedAsset = assetNames[0] || "";
-      isDarkMode = document.documentElement.classList.contains("dark");
 
       if (contractAddress) {
         const contract = new ethers.Contract(
           contractAddress,
           contractABI,
-          getChainProvider(chainId),
+          getChainProvider(currentChainId),
         );
         const unitDec = await contract.UNIT_DEC();
         decimals = Math.round(Math.log10(Number(unitDec)));
@@ -235,7 +230,7 @@
         address,
         ethersProvider,
         contractAddress,
-        chainId,
+        currentChainId,
       );
       if (!allowanceInfo) return;
 
@@ -249,7 +244,7 @@
           (requiredAmount * 2).toString(),
           signer,
           contractAddress,
-          chainId,
+          currentChainId,
         );
         isApproving = false;
         if (!approvalSuccess) return;
@@ -324,23 +319,6 @@
     }
   };
 
-  $effect(() => {
-    chainId = get(currentChainId);
-    currentChainConfig = get(currentChain);
-  });
-  $effect(() => {
-    if (chainId && dataset) loadMarketData();
-  });
-  $effect(() => {
-    getContractPrice();
-  });
-  $effect(() => {
-    isDarkMode = document.documentElement.classList.contains("dark");
-  });
-  $effect(() => {
-    if (appKit && assetNames.length > 0) getUserShares();
-  });
-
   const decrement = () => {
     if (amount > 1) amount -= 1;
   };
@@ -359,212 +337,153 @@
 
   onMount(loadMarketData);
 
-  const chartColors = $derived(getChartColors(Math.max(10, assetNames.length)));
-  const options: ApexOptions = $derived({
-    colors: chartColors.slice(0, 2),
-    series: [
-      {
-        name: "Current percentage",
-        data: assetNames.map((name, i) => ({
-          x: name,
-          y: currentAllocationData[i],
-        })),
-      },
-      {
-        name: "Margin price",
-        data: assetNames.map((name, i) => ({ x: name, y: marginalPrices[i] })),
-      },
-    ],
-    chart: {
-      type: "bar",
-      height: "320px",
-      toolbar: { show: false },
-      foreColor: isDarkMode ? "#f9fafb" : "#111827",
+  const barChartConfig = {
+    percentage: {
+      label: "Current percentage",
+      color: "var(--bar-chart-1)",
     },
-    plotOptions: {
-      bar: { horizontal: false, columnWidth: "70%", borderRadius: 8 },
+    marginal: {
+      label: "Margin price",
+      color: "var(--bar-chart-2)",
     },
-    tooltip: {
-      shared: true,
-      intersect: false,
-      theme: isDarkMode ? "dark" : "light",
-    },
-    grid: { show: false },
-    dataLabels: { enabled: false },
-    legend: { show: false },
-    xaxis: {
-      labels: { style: { colors: isDarkMode ? "#f9fafb" : "#111827" } },
-      axisBorder: { show: false },
-      axisTicks: { show: false },
-    },
-    yaxis: {
-      labels: {
-        formatter: (value: number) => value.toFixed(3),
-        style: { colors: isDarkMode ? "#f9fafb" : "#111827" },
-      },
-    },
-  });
+  } satisfies Chart.ChartConfig;
 
-  const lineChartOptions: ApexOptions = $derived({
-    chart: {
-      height: "320px",
-      type: "line",
-      toolbar: { show: false },
-      foreColor: isDarkMode ? "#f9fafb" : "#111827",
-    },
-    colors: chartColors,
-    series: assetNames.map((name, i) => ({
-      name,
-      data: dataRows.map((row) => row[i] || null),
+  const barChartData = $derived(
+    assetNames.map((name, i) => ({
+      name: name,
+      percentage: currentAllocationData[i],
+      marginal: marginalPrices[i],
     })),
-    stroke: { width: 6, curve: "smooth" },
-    grid: { borderColor: isDarkMode ? "#374151" : "#e5e7eb" },
-    legend: { labels: { colors: isDarkMode ? "#f9fafb" : "#111827" } },
-    tooltip: {
-      shared: true,
-      intersect: false,
-      theme: isDarkMode ? "dark" : "light",
-    },
-    xaxis: {
-      categories: dataDates.length
-        ? dataDates.map((d) => d.toLocaleDateString())
-        : dataRows.map((_, i) => `Event ${i + 1}`),
-      labels: { show: false },
-    },
-    yaxis: {
-      labels: {
-        formatter: (value: number) => value.toFixed(3),
-        style: { colors: isDarkMode ? "#f9fafb" : "#111827" },
-      },
-    },
-  });
+  );
 
-  const separateChartOptions = $derived(
-    assetNames.map((name, index) => ({
-      chart: {
-        height: "200px",
-        type: "line" as const,
-        toolbar: { show: false },
-        foreColor: isDarkMode ? "#f9fafb" : "#111827",
-      },
-      colors: [chartColors[index % chartColors.length]],
-      series: [{ name, data: dataRows.map((row) => row[index] || null) }],
-      stroke: { width: 3, curve: "smooth" as const },
-      grid: { borderColor: isDarkMode ? "#374151" : "#e5e7eb" },
-      title: {
-        text: name,
-        style: { color: isDarkMode ? "#f9fafb" : "#111827" },
-      },
-      tooltip: {
-        shared: false,
-        intersect: false,
-        theme: isDarkMode ? "dark" : "light",
-      },
-      xaxis: {
-        categories: dataDates.length
-          ? dataDates.map((d) => d.toLocaleDateString())
-          : dataRows.map((_, i) => `Event ${i + 1}`),
-        labels: { show: false },
-      },
-      yaxis: {
-        labels: {
-          formatter: (value: number) => value.toFixed(3),
-          style: { colors: isDarkMode ? "#f9fafb" : "#111827" },
+  const lineChartConfig: Chart.ChartConfig = $derived(
+    Object.fromEntries(
+      assetNames.map((name, i) => [
+        name,
+        {
+          label: name,
+          color: getChartColor(i),
         },
-      },
-    })),
+      ]),
+    ),
+  );
+
+  const lineChartData = $derived(
+    dataDates.map((date, dateIndex) => {
+      const entry: Record<string, any> = { date };
+      assetNames.forEach((assetName, assetIndex) => {
+        entry[assetName] = dataRows[dateIndex][assetIndex];
+      });
+      return entry;
+    }),
   );
 </script>
 
 <div class="theme-surface grid min-h-screen grid-cols-3 items-start gap-8 p-8">
+  <!-- loading or error or chart -->
   <div class="col-span-2">
     {#if loading}
       <p class="theme-text">Loading chart...</p>
     {:else if error}
       <Alert color="red">{error}</Alert>
     {:else}
-      <Chart {options} />
+      <Chart.Container class="h-[400px] w-full" config={barChartConfig}>
+        <BarChart
+          data={barChartData}
+          xScale={scaleBand().padding(0.25)}
+          x="name"
+          axis="x"
+          seriesLayout="group"
+          series={[
+            {
+              key: "percentage",
+              label: barChartConfig.percentage.label,
+              color: barChartConfig.percentage.color,
+            },
+            {
+              key: "marginal",
+              label: barChartConfig.marginal.label,
+              color: barChartConfig.marginal.color,
+            },
+          ]}
+        >
+          {#snippet tooltip()}
+            <Chart.Tooltip />
+          {/snippet}
+        </BarChart>
+      </Chart.Container>
     {/if}
   </div>
-  <Card
+  <Card.Root
     class="theme-card theme-border h-full p-6 shadow-lg transition-opacity hover:opacity-90"
   >
-    <form class="flex h-full flex-col justify-center">
-      <div class="mb-4 flex items-end justify-start gap-4">
-        <p class="theme-text text-4xl font-semibold">
-          ${price}
-        </p>
-        <div>
-          <p class="text-s theme-text-secondary font-normal">
-            ${pricePerShare}
+    <Card.Content>
+      <form class="flex h-full flex-col justify-center">
+        <div class="mb-4 flex items-end justify-start gap-4">
+          <p class="theme-text text-4xl font-semibold">
+            ${price}
           </p>
-          <p class="text-s theme-text-secondary font-normal">per share</p>
-        </div>
-      </div>
-      <Label class="theme-text mb-4 space-y-2">
-        <span>Asset</span>
-        <Select
-          bind:value={selectedAsset}
-          items={selectItems}
-          class="theme-card theme-border theme-text"
-        />
-      </Label>
-      <Label class="theme-text mb-4 space-y-2">
-        <span>Shares</span>
-        <div class="relative">
-          <Input
-            bind:value={amount}
-            type="number"
-            name="amount"
-            class="theme-card theme-border theme-text w-full pe-24"
-            required
-          />
-          <div class="absolute inset-y-0 end-0 flex items-center pe-2">
-            <Button
-              onclick={decrement}
-              type="button"
-              color="light"
-              class="theme-card theme-text !p-1.5 text-xs !font-normal"
-              >-1</Button
-            >
-            <Button
-              onclick={increment}
-              type="button"
-              color="light"
-              class="theme-card theme-text ms-1 !p-1.5 text-xs !font-normal"
-              >+1</Button
-            >
+          <div class="text-s theme-text-secondary font-normal">
+            <p>
+              ${pricePerShare}
+            </p>
+            <p>per share</p>
           </div>
         </div>
-        {#if isInvalid}
-          <Alert>Shares must be a positive number.</Alert>
-        {/if}
-      </Label>
-      <div class="mb-4 grid grid-cols-2 gap-4">
+        <div class="theme-text mb-4 space-y-2">
+          <Label for="assetSelection">Assets</Label>
+          <div id="assetSelection">
+            <Select.Root type="single" bind:value={selectedAsset}>
+              <Select.Trigger
+                class="theme-card theme-border theme-text w-full text-left"
+              >
+                {selectedAsset !== undefined ? selectedAsset : "Select Outcome"}
+              </Select.Trigger>
+              <Select.Content>
+                {#each selectItems as item}
+                  <Select.Item value={item.value}>{item.name}</Select.Item>
+                {/each}
+              </Select.Content>
+            </Select.Root>
+          </div>
+        </div>
+        <div class="theme-text mb-4 space-y-2">
+          <Label for="amountInput">Shares</Label>
+          <div id="amountInput" class="flex w-full items-center space-x-2">
+            <Input bind:value={amount} type="number" name="amount" required />
+            <Button onclick={decrement} type="button" color="light">-1</Button>
+            <Button onclick={increment} type="button" color="light">+1</Button>
+          </div>
+          {#if isInvalid}
+            <Alert>Share amount must be a positive number.</Alert>
+          {/if}
+        </div>
+        <div class="mb-4 grid grid-cols-2 gap-4">
+          <Button
+            onclick={handleBuy}
+            size="lg"
+            class="w-full"
+            disabled={isInvalid || isBuying}
+            >{isBuying ? "Buying..." : "Buy"}</Button
+          >
+          <Button
+            onclick={handleSell}
+            size="lg"
+            class="w-full"
+            disabled={isInvalid || isSelling}
+            variant="destructive">{isSelling ? "Selling..." : "Sell"}</Button
+          >
+        </div>
         <Button
-          onclick={handleBuy}
-          size="xl"
+          onclick={handleRedeem}
+          size="lg"
           class="w-full"
-          disabled={isInvalid || isBuying}
-          color="green">{isBuying ? "Buying..." : "Buy"}</Button
+          disabled={isRedeeming}
+          >{isRedeeming ? "Redeeming..." : "Redeem"}</Button
         >
-        <Button
-          onclick={handleSell}
-          size="xl"
-          class="w-full"
-          disabled={isInvalid || isSelling}
-          color="red">{isSelling ? "Selling..." : "Sell"}</Button
-        >
-      </div>
-      <Button
-        onclick={handleRedeem}
-        size="xl"
-        class="w-full"
-        color="orange"
-        disabled={isRedeeming}>{isRedeeming ? "Redeeming..." : "Redeem"}</Button
-      >
-    </form>
-  </Card>
+      </form>
+    </Card.Content>
+  </Card.Root>
   <div
     class="theme-card theme-border col-span-3 rounded-lg p-4 shadow-lg transition-opacity hover:opacity-90 md:p-6"
   >
@@ -583,14 +502,39 @@
     {:else if error}
       <Alert color="red">{error}</Alert>
     {:else if combinedMode}
-      <Chart options={lineChartOptions} />
+      <Chart.Container class="h-[300px] w-full" config={lineChartConfig}>
+        <LineChart
+          data={lineChartData}
+          x="date"
+          yDomain={null}
+          series={assetNames.map((n) => ({
+            key: n,
+            color: lineChartConfig[n].color,
+          }))}
+        >
+          {#snippet tooltip()}
+            <Chart.Tooltip />
+          {/snippet}
+        </LineChart>
+      </Chart.Container>
     {:else}
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {#each separateChartOptions as chartOption}
+        {#each assetNames as asset}
           <div
             class="theme-border theme-card rounded-lg p-4 shadow-md transition-opacity hover:opacity-90"
           >
-            <Chart options={chartOption} />
+            <Chart.Container class="h-[300px] w-full" config={lineChartConfig}>
+              <LineChart
+                data={lineChartData}
+                x="date"
+                yDomain={null}
+                series={[{ key: asset, color: lineChartConfig[asset].color }]}
+              >
+                {#snippet tooltip()}
+                  <Chart.Tooltip />
+                {/snippet}
+              </LineChart>
+            </Chart.Container>
           </div>
         {/each}
       </div>
@@ -611,7 +555,7 @@
         </div>
         {#if userShares.some((share) => share > 0)}
           <div class="text-right">
-            <div class="text-2xl font-bold text-green-600 dark:text-green-400">
+            <div class="text-2xl font-bold">
               {userShares
                 .reduce(
                   (total, shares, index) =>
@@ -620,9 +564,7 @@
                 )
                 .toFixed(4)}
             </div>
-            <p class="text-sm text-gray-600 dark:text-gray-400">
-              Total Estimated Payout
-            </p>
+            <p class="text-sm">Total Estimated Payout</p>
           </div>
         {/if}
       </div>
@@ -632,11 +574,9 @@
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {#each assetNames as assetName, index}
           {#if userShares[index] > 0}
-            <div
-              class="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20"
-            >
+            <div class="rounded-lg border">
               <div class="mb-3 flex items-center justify-between">
-                <h4 class="font-medium text-blue-800 dark:text-blue-200">
+                <h4 class="font-medium">
                   {assetName}
                 </h4>
               </div>
@@ -644,12 +584,8 @@
               <!-- Shares Owned -->
               <div class="mb-3">
                 <div class="flex items-center justify-between">
-                  <span class="text-sm text-blue-600 dark:text-blue-300">
-                    Shares Owned:
-                  </span>
-                  <span
-                    class="text-xl font-bold text-blue-900 dark:text-blue-100"
-                  >
+                  <span class="text-sm"> Shares Owned: </span>
+                  <span class="text-xl font-bold">
                     {userShares[index].toFixed(3)}
                   </span>
                 </div>
@@ -659,45 +595,31 @@
               {#if currentAllocationData[index] !== undefined}
                 <div class="mb-3">
                   <div class="flex items-center justify-between">
-                    <span class="text-sm text-blue-600 dark:text-blue-300">
-                      Current Distribution:
-                    </span>
-                    <span
-                      class="text-lg font-semibold text-blue-800 dark:text-blue-200"
-                    >
+                    <span class="text-sm"> Current Distribution: </span>
+                    <span class="text-lg font-semibold">
                       {(currentAllocationData[index] * 100).toFixed(1)}%
                     </span>
                   </div>
                 </div>
 
                 <!-- Estimated Instant Payout -->
-                <div class="border-t border-blue-200 pt-2 dark:border-blue-700">
+                <div class="border-t">
                   <div class="flex items-center justify-between">
-                    <span
-                      class="text-sm font-medium text-blue-700 dark:text-blue-300"
-                    >
-                      Estimated Payout:
-                    </span>
-                    <span
-                      class="text-lg font-bold text-green-700 dark:text-green-400"
-                    >
+                    <span class="text-sm font-medium"> Estimated Payout: </span>
+                    <span class="text-lg font-bold">
                       {(
                         userShares[index] * currentAllocationData[index]
                       ).toFixed(4)}
                     </span>
                   </div>
-                  <p class="mt-1 text-xs text-blue-500 dark:text-blue-400">
-                    (shares × distribution)
-                  </p>
+                  <p class="mt-1 text-xs">(shares × distribution)</p>
                 </div>
               {/if}
 
               <!-- Current Price -->
               {#if marginalPrices[index] > 0}
-                <div
-                  class="mt-2 border-t border-blue-200 pt-2 dark:border-blue-700"
-                >
-                  <p class="text-xs text-blue-500 dark:text-blue-400">
+                <div class="mt-2 border-t">
+                  <p class="text-xs">
                     Current price: {marginalPrices[index].toFixed(4)}
                   </p>
                 </div>
@@ -707,20 +629,8 @@
         {/each}
       </div>
     {:else}
-      <div class="py-8 text-center text-gray-500 dark:text-gray-400">
-        <svg
-          class="mx-auto mb-4 h-12 w-12 opacity-50"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-          />
-        </svg>
+      <div class="py-8 text-center">
+        <ChartColumnBig class="mx-auto mb-4 h-12 w-12 opacity-50" />
         <p class="text-lg font-medium">No holdings yet</p>
         <p class="text-sm">Buy some shares to see your positions here</p>
       </div>
@@ -729,118 +639,96 @@
 </div>
 
 <!-- Transaction Confirmation Modal -->
-<Modal bind:open={showConfirmation} title="Confirm Transaction">
-  {#if pendingTransaction && transactionCost}
-    <div class="space-y-4">
-      <div class="text-center">
-        <h3 class="text-lg font-semibold">
-          {pendingTransaction === "buy" ? "Buy" : "Sell"}
-          {amount} shares of {selectedAsset}
-        </h3>
-        <p class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
-          Cost: {transactionCost} tokens
-        </p>
-      </div>
+<Dialog.Root bind:open={showConfirmation}>
+  <Dialog.Content>
+    <Dialog.Header>
+      <Dialog.Title>Confirm Transaction</Dialog.Title>
+      {#if pendingTransaction && transactionCost}
+        <Dialog.Description>
+          <div class="space-y-4">
+            <div class="text-center">
+              <h3 class="text-lg font-semibold">
+                {pendingTransaction === "buy" ? "Buy" : "Sell"}
+                {amount} shares of {selectedAsset}
+              </h3>
+              <p class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
+                Cost: {transactionCost} tokens
+              </p>
+            </div>
 
-      <div class="rounded-lg bg-yellow-50 p-4 dark:bg-yellow-900/20">
-        <p class="text-sm text-yellow-800 dark:text-yellow-200">
-          This transaction will require token approval if you haven't approved
-          enough tokens yet. You may see two transactions: one for approval and
-          one for the trade.
-        </p>
-      </div>
-
-      <div class="flex space-x-4">
-        <Button
-          onclick={confirmTransaction}
-          disabled={isBuying || isSelling || isApproving}
-          color="green"
-          class="flex-1"
-        >
-          {#if isApproving}
-            Approving...
-          {:else if isBuying}
-            Buying...
-          {:else if isSelling}
-            Selling...
-          {:else}
-            Confirm
-          {/if}
-        </Button>
-        <Button
-          onclick={() => (showConfirmation = false)}
-          color="alternative"
-          class="flex-1"
-          disabled={isBuying || isSelling || isApproving}
-        >
-          Cancel
-        </Button>
-      </div>
-    </div>
-  {/if}
-</Modal>
+            <div class="rounded-lg">
+              <p class="text-sm">
+                This transaction will require token approval if you haven't
+                approved enough tokens yet. You may see two transactions: one
+                for approval and one for the trade.
+              </p>
+            </div>
+          </div>
+        </Dialog.Description>
+      {/if}
+    </Dialog.Header>
+    <Dialog.Footer>
+      <Button
+        onclick={confirmTransaction}
+        disabled={isBuying || isSelling || isApproving}
+        color="green"
+        class="flex-1"
+      >
+        {#if isApproving}
+          Approving...
+        {:else if isBuying}
+          Buying...
+        {:else if isSelling}
+          Selling...
+        {:else}
+          Confirm
+        {/if}
+      </Button>
+      <Button
+        onclick={() => (showConfirmation = false)}
+        color="alternative"
+        class="flex-1"
+        disabled={isBuying || isSelling || isApproving}
+      >
+        Cancel
+      </Button>
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog.Root>
 
 <!-- Market Not Resolved Modal -->
-<Modal bind:open={showMarketNotResolved} title="Market Not Resolved">
-  <div class="space-y-6">
-    <div class="text-center">
-      <div
-        class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/20"
-      >
-        <svg
-          class="h-6 w-6 text-orange-600 dark:text-orange-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-          />
-        </svg>
-      </div>
-      <h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-gray-100">
-        Market Not Resolved
-      </h3>
-      <p class="text-sm text-gray-600 dark:text-gray-400">
-        The market for this dataset on the current chain is not yet resolved.
-      </p>
-    </div>
+<Dialog.Root bind:open={showMarketNotResolved}>
+  <Dialog.Content>
+    <Dialog.Header>
+      <Dialog.Title>Market Not Resolved</Dialog.Title>
+      <Dialog.Description>
+        <div class="space-y-6">
+          <div class="text-center">
+            <p class="text-sm">
+              The market for this dataset on the current chain is not yet
+              resolved.
+            </p>
+          </div>
 
-    <div class="rounded-lg bg-orange-50 p-4 dark:bg-orange-900/20">
-      <div class="flex">
-        <div class="flex-shrink-0">
-          <svg
-            class="h-5 w-5 text-orange-400"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fill-rule="evenodd"
-              d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-              clip-rule="evenodd"
-            />
-          </svg>
-        </div>
-        <div class="ml-3">
-          <h3 class="text-sm font-medium text-orange-800 dark:text-orange-200">
-            What this means:
-          </h3>
-          <div class="mt-2 text-sm text-orange-700 dark:text-orange-300">
-            <ul class="list-inside list-disc space-y-1">
-              <li>The market outcome has not been determined yet</li>
-              <li>You may need to wait for the market to resolve</li>
-              <li>Ensure you're on the correct chain</li>
-              <li>Check if the market contract is properly deployed</li>
-            </ul>
+          <div class="rounded-lg">
+            <div class="flex">
+              <div class="ml-3">
+                <h3 class="text-sm font-medium">What this means:</h3>
+                <div class="mt-2 text-sm">
+                  <ul class="list-inside list-disc space-y-1">
+                    <li>The market outcome has not been determined yet</li>
+                    <li>You may need to wait for the market to resolve</li>
+                    <li>Ensure you're on the correct chain</li>
+                    <li>Check if the market contract is properly deployed</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <div class="flex justify-end space-x-3">
+      </Dialog.Description>
+    </Dialog.Header>
+    <Dialog.Footer>
       <Button
         onclick={() => (showMarketNotResolved = false)}
         color="alternative"
@@ -848,9 +736,9 @@
       >
         Close
       </Button>
-    </div>
-  </div>
-</Modal>
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog.Root>
 
 <style>
   /* Hide spinner buttons from number input */

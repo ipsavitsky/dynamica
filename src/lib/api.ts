@@ -3,7 +3,6 @@ import {
   normalizeToDistribution,
   convertToDataPoint,
 } from "./coingecko";
-import { get } from "svelte/store";
 import { currentChainId } from "./chainManager";
 import {
   getDataSourceForMarket,
@@ -33,7 +32,7 @@ class DataService {
   }
 
   async getCryptoData(latest?: boolean): Promise<DataPoint> {
-    const dataSource = getDataSourceForMarket(get(currentChainId), "crypto");
+    const dataSource = getDataSourceForMarket(currentChainId, "crypto");
     if (!dataSource) return { headers: [], rows: [] };
 
     if (isCoinGeckoDataSource(dataSource)) {
