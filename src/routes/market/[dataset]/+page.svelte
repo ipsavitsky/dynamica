@@ -72,8 +72,7 @@
 
   const getContractPrice = async () => {
     if (isInvalid || !contractAddress) {
-      price = isInvalid ? "0.00" : "Error";
-      return;
+      return isInvalid ? "0.00" : "Error";
     }
     try {
       const contract = new ethers.Contract(
@@ -321,10 +320,18 @@
 
   const decrement = () => {
     if (amount > 1) amount -= 1;
+    // Trigger immediate re-quote after decrement
+    immediateDebounce(() => {
+      getContractPrice();
+    }, 0);
   };
 
   const increment = () => {
     amount += 1;
+    // Trigger immediate re-quote after increment
+    immediateDebounce(() => {
+      getContractPrice();
+    }, 0);
   };
 
   const handleBuy = async () => {
@@ -336,6 +343,42 @@
   };
 
   onMount(loadMarketData);
+
+  // Immediate debounce helper for direct UI actions
+  let _immediateDebounce: ReturnType<typeof setTimeout> | null = null;
+  const immediateDebounce = (fn: () => void, delay = 200) => {
+    if (_immediateDebounce) clearTimeout(_immediateDebounce);
+    _immediateDebounce = setTimeout(fn, delay);
+  };
+
+  // Debounce helper and reactive effect to update price on amount/selection changes
+  let _debounceHandle: ReturnType<typeof setTimeout> | null = null;
+  const debounce = (fn: () => void, delay = 250) => {
+    if (_debounceHandle) clearTimeout(_debounceHandle);
+    _debounceHandle = setTimeout(fn, delay);
+  };
+
+  $effect(() => {
+    // Only run when we have enough context to compute a quote
+    const ready =
+      !!contractAddress &&
+      Array.isArray(assetNames) &&
+      assetNames.length > 0 &&
+      typeof decimals === "number" &&
+      selectedAsset !== "" &&
+      amount != null &&
+      Number(amount) > 0;
+
+    if (!ready) return;
+
+    const assetIndex = assetNames.indexOf(selectedAsset);
+    if (assetIndex < 0) return;
+
+    debounce(() => {
+      // getContractPrice updates the `price` state internally
+      getContractPrice();
+    }, 250);
+  });
 
   const barChartConfig = {
     percentage: {
@@ -450,7 +493,20 @@
         <div class="theme-text mb-4 space-y-2">
           <Label for="amountInput">Shares</Label>
           <div id="amountInput" class="flex w-full items-center space-x-2">
-            <Input bind:value={amount} type="number" name="amount" required />
+            <Input
+              bind:value={amount}
+              type="number"
+              name="amount"
+              required
+              oninput={() => {
+                if (!contractAddress) return;
+                if (!selectedAsset) return;
+                if (amount == null || Number(amount) <= 0) return;
+                immediateDebounce(() => {
+                  getContractPrice(); // updates price based on current amount
+                }, 200);
+              }}
+            />
             <Button onclick={decrement} type="button" color="light">-1</Button>
             <Button onclick={increment} type="button" color="light">+1</Button>
           </div>
@@ -471,7 +527,7 @@
             size="lg"
             class="w-full"
             disabled={isInvalid || isSelling}
-            variant="destructive">{isSelling ? "Selling..." : "Sell"}</Button
+            >{isSelling ? "Selling..." : "Sell"}</Button
           >
         </div>
         <Button
