@@ -12,6 +12,7 @@
       packages = with pkgs; [
         bun
         nil
+        nodejs
         opencode
       ];
     };

@@ -437,124 +437,135 @@
   );
 </script>
 
-<div class="theme-surface grid min-h-screen grid-cols-3 items-start gap-8 p-8">
-  <!-- loading or error or chart -->
-  <div class="col-span-2">
-    {#if loading}
-      <p class="theme-text">Loading chart...</p>
-    {:else if error}
-      <Alert color="red">{error}</Alert>
-    {:else}
-      <Chart.Container class="h-[400px] w-full" config={barChartConfig}>
-        <BarChart
-          data={barChartData}
-          xScale={scaleBand().padding(0.25)}
-          x="name"
-          axis="x"
-          seriesLayout="group"
-          series={[
-            {
-              key: "percentage",
-              label: barChartConfig.percentage.label,
-              color: barChartConfig.percentage.color,
-            },
-            {
-              key: "marginal",
-              label: barChartConfig.marginal.label,
-              color: barChartConfig.marginal.color,
-            },
-          ]}
+<div class="theme-surface min-h-screen p-4 md:p-8">
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-3 md:items-start md:gap-8">
+    <!-- loading or error or chart -->
+    <div class="order-1 md:col-span-2">
+      {#if loading}
+        <p class="theme-text">Loading chart...</p>
+      {:else if error}
+        <Alert color="red">{error}</Alert>
+      {:else}
+        <Chart.Container
+          class="h-[300px] w-full md:h-[400px]"
+          config={barChartConfig}
         >
-          {#snippet tooltip()}
-            <Chart.Tooltip />
-          {/snippet}
-        </BarChart>
-      </Chart.Container>
-    {/if}
-  </div>
-  <Card.Root
-    class="theme-card theme-border h-full p-6 shadow-lg transition-opacity hover:opacity-90"
-  >
-    <Card.Content>
-      <form class="flex h-full flex-col justify-center">
-        <div class="mb-4 flex items-end justify-start gap-4">
-          <p class="theme-text text-4xl font-semibold">
-            ${price}
-          </p>
-          <div class="text-s theme-text-secondary font-normal">
-            <p>
-              ${pricePerShare}
+          <BarChart
+            data={barChartData}
+            xScale={scaleBand().padding(0.25)}
+            x="name"
+            axis="x"
+            seriesLayout="group"
+            series={[
+              {
+                key: "percentage",
+                label: barChartConfig.percentage.label,
+                color: barChartConfig.percentage.color,
+              },
+              {
+                key: "marginal",
+                label: barChartConfig.marginal.label,
+                color: barChartConfig.marginal.color,
+              },
+            ]}
+          >
+            {#snippet tooltip()}
+              <Chart.Tooltip />
+            {/snippet}
+          </BarChart>
+        </Chart.Container>
+      {/if}
+    </div>
+    <Card.Root
+      class="theme-card theme-border order-2 h-full p-4 shadow-lg transition-opacity hover:opacity-90 md:order-1 md:col-span-1 md:p-6"
+    >
+      <Card.Content>
+        <form class="flex h-full flex-col justify-center">
+          <div class="mb-4 flex items-end justify-start gap-4">
+            <p class="theme-text text-3xl font-semibold md:text-4xl">
+              ${price}
             </p>
-            <p>per share</p>
+            <div class="theme-text-secondary text-xs font-normal md:text-sm">
+              <p>
+                ${pricePerShare}
+              </p>
+              <p>per share</p>
+            </div>
           </div>
-        </div>
-        <div class="theme-text mb-4 space-y-2">
-          <Label for="assetSelection">Assets</Label>
-          <div id="assetSelection">
-            <Select.Root type="single" bind:value={selectedAsset}>
-              <Select.Trigger
-                class="theme-card theme-border theme-text w-full text-left"
+          <div class="theme-text mb-4 space-y-2">
+            <Label for="assetSelection">Assets</Label>
+            <div id="assetSelection">
+              <Select.Root type="single" bind:value={selectedAsset}>
+                <Select.Trigger
+                  class="theme-card theme-border theme-text w-full text-left"
+                >
+                  {selectedAsset !== undefined
+                    ? selectedAsset
+                    : "Select Outcome"}
+                </Select.Trigger>
+                <Select.Content>
+                  {#each selectItems as item}
+                    <Select.Item value={item.value}>{item.name}</Select.Item>
+                  {/each}
+                </Select.Content>
+              </Select.Root>
+            </div>
+          </div>
+          <div class="theme-text mb-4 space-y-2">
+            <Label for="amountInput">Shares</Label>
+            <div id="amountInput" class="flex w-full items-center space-x-2">
+              <Input
+                class="h-11"
+                bind:value={amount}
+                type="number"
+                name="amount"
+                required
+                oninput={() => {
+                  if (!contractAddress) return;
+                  if (!selectedAsset) return;
+                  if (amount == null || Number(amount) <= 0) return;
+                  immediateDebounce(() => {
+                    getContractPrice(); // updates price based on current amount
+                  }, 200);
+                }}
+              />
+              <Button onclick={decrement} type="button" color="light">-1</Button
               >
-                {selectedAsset !== undefined ? selectedAsset : "Select Outcome"}
-              </Select.Trigger>
-              <Select.Content>
-                {#each selectItems as item}
-                  <Select.Item value={item.value}>{item.name}</Select.Item>
-                {/each}
-              </Select.Content>
-            </Select.Root>
+              <Button onclick={increment} type="button" color="light">+1</Button
+              >
+            </div>
+            {#if isInvalid}
+              <Alert>Share amount must be a positive number.</Alert>
+            {/if}
           </div>
-        </div>
-        <div class="theme-text mb-4 space-y-2">
-          <Label for="amountInput">Shares</Label>
-          <div id="amountInput" class="flex w-full items-center space-x-2">
-            <Input
-              bind:value={amount}
-              type="number"
-              name="amount"
-              required
-              oninput={() => {
-                if (!contractAddress) return;
-                if (!selectedAsset) return;
-                if (amount == null || Number(amount) <= 0) return;
-                immediateDebounce(() => {
-                  getContractPrice(); // updates price based on current amount
-                }, 200);
-              }}
-            />
-            <Button onclick={decrement} type="button" color="light">-1</Button>
-            <Button onclick={increment} type="button" color="light">+1</Button>
+          <div class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Button
+              onclick={handleBuy}
+              size="lg"
+              class="w-full"
+              disabled={isInvalid || isBuying}
+              >{isBuying ? "Buying..." : "Buy"}</Button
+            >
+            <Button
+              onclick={handleSell}
+              size="lg"
+              class="w-full"
+              disabled={isInvalid || isSelling}
+              >{isSelling ? "Selling..." : "Sell"}</Button
+            >
           </div>
-          {#if isInvalid}
-            <Alert>Share amount must be a positive number.</Alert>
-          {/if}
-        </div>
-        <div class="mb-4 grid grid-cols-2 gap-4">
           <Button
-            onclick={handleBuy}
+            onclick={handleRedeem}
             size="lg"
             class="w-full"
-            disabled={isInvalid || isBuying}
-            >{isBuying ? "Buying..." : "Buy"}</Button
+            disabled={isRedeeming}
+            >{isRedeeming ? "Redeeming..." : "Redeem"}</Button
           >
-          <Button
-            onclick={handleSell}
-            size="lg"
-            class="w-full"
-            disabled={isInvalid || isSelling}
-            >{isSelling ? "Selling..." : "Sell"}</Button
-          >
-        </div>
-        <Button
-          onclick={handleRedeem}
-          size="lg"
-          class="w-full"
-          disabled={isRedeeming}
-          >{isRedeeming ? "Redeeming..." : "Redeem"}</Button
-        >
-      </form>
-    </Card.Content>
-  </Card.Root>
+        </form>
+      </Card.Content>
+    </Card.Root>
+  </div>
+
   <div
     class="theme-card theme-border col-span-3 rounded-lg p-4 shadow-lg transition-opacity hover:opacity-90 md:p-6"
   >
