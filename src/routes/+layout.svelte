@@ -63,23 +63,17 @@
   });
 </script>
 
-<header>
-  <NavigationMenu.Root class="p-5">
+<header class="flex items-center justify-between p-5">
+  <a href="/" class="flex items-center">
+    <span
+      class="theme-text self-center text-2xl font-semibold whitespace-nowrap"
+      style="font-family: 'Zen Dots', cursive;"
+    >
+      dynamica
+    </span>
+  </a>
+  <NavigationMenu.Root>
     <NavigationMenu.List>
-      <NavigationMenu.Item>
-        <NavigationMenu.Link>
-          {#snippet child()}
-            <a href="/" class={navigationMenuTriggerStyle()}>
-              <span
-                class="theme-text self-center text-2xl font-semibold whitespace-nowrap"
-                style="font-family: 'Zen Dots', cursive;"
-              >
-                dynamica
-              </span>
-            </a>
-          {/snippet}
-        </NavigationMenu.Link>
-      </NavigationMenu.Item>
       <NavigationMenu.Item>
         <Button onclick={toggleMode}>
           <Moon class="h-4 w-4 dark:scale-0" />
@@ -88,22 +82,52 @@
       </NavigationMenu.Item>
       <NavigationMenu.Item>
         {#if browser}
-          {#if address}
-            <Button onclick={handleMint} disabled={isMinting}>
-              {isMinting ? "..." : "+10"}
-            </Button>
-            {#if tokenBalance}
-              <span class="rounded-md">
-                {tokenBalance.balance}
-                {tokenBalance.symbol}
-              </span>
-            {/if}
-            <Button onclick={() => appKit?.open({ view: "Account" })}>
+          <NavigationMenu.Trigger>
+            {#if address}
               {formatAddress(address)}
-            </Button>
-          {:else}
-            <Button onclick={() => appKit?.open()}>Connect Wallet</Button>
-          {/if}
+            {:else}
+              Connect Wallet
+            {/if}
+          </NavigationMenu.Trigger>
+          <NavigationMenu.Content>
+            <ul class="w-[220px] gap-2 p-2">
+              {#if address}
+                <li>
+                  <Button
+                    class="w-full"
+                    onclick={handleMint}
+                    disabled={isMinting}
+                  >
+                    {isMinting ? "Minting..." : "+10 Tokens"}
+                  </Button>
+                </li>
+                {#if tokenBalance}
+                  <li>
+                    <div
+                      class="from-muted/50 to-muted rounded-md bg-linear-to-b p-3 text-sm"
+                    >
+                      Balance: {tokenBalance.balance}
+                      {tokenBalance.symbol}
+                    </div>
+                  </li>
+                {/if}
+                <li>
+                  <Button
+                    class="w-full"
+                    onclick={() => appKit?.open({ view: "Account" })}
+                  >
+                    View Account
+                  </Button>
+                </li>
+              {:else}
+                <li>
+                  <Button class="w-full" onclick={() => appKit?.open()}>
+                    Connect Wallet
+                  </Button>
+                </li>
+              {/if}
+            </ul>
+          </NavigationMenu.Content>
         {/if}
       </NavigationMenu.Item>
     </NavigationMenu.List>
