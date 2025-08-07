@@ -197,7 +197,11 @@ export const getTransactionCost = async (
 ) => {
   try {
     const tokenAddress = getBaseTokenAddress(chainId);
-    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+    const tokenContract = new ethers.Contract(
+      tokenAddress,
+      ERC20_ABI,
+      provider,
+    );
     const tokenDecimals = await tokenContract.decimals().catch(() => 18);
     const contract = new ethers.Contract(marketAddress, contractABI, provider);
     const [unitDec, outcomeSlotCount] = await Promise.all([
@@ -211,9 +215,9 @@ export const getTransactionCost = async (
 
     const netCost = await contract.calcNetCost(deltaOutcomeAmounts);
     return {
-      cost: Math.abs(parseFloat(ethers.formatUnits(netCost, tokenDecimals))).toFixed(
-        6,
-      ),
+      cost: Math.abs(
+        parseFloat(ethers.formatUnits(netCost, tokenDecimals)),
+      ).toFixed(6),
       tokenDecimals,
     };
   } catch (error) {

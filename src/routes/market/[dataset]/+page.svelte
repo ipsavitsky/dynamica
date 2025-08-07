@@ -27,7 +27,11 @@
   import { initializeAppKit } from "$lib/appkit";
   import { browser } from "$app/environment";
   import { getChartColor } from "$lib/theme";
-  import { getMarketAddress, getMarketConfig, getChainConfig } from "$lib/config/index";
+  import {
+    getMarketAddress,
+    getMarketConfig,
+    getChainConfig,
+  } from "$lib/config/index";
   import { currentChainId, currentChain } from "$lib/chainManager";
   import ChartColumnBig from "@lucide/svelte/icons/chart-column-big";
 
