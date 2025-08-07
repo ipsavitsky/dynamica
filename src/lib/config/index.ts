@@ -18,23 +18,23 @@ export interface MarketConfig {
 }
 
 const CHAINS: Record<number, ChainConfig> = {
-  296: {
-    id: 296,
-    name: "Hedera Testnet",
+  297: {
+    id: 297,
+    name: "Hedera Previewnet",
     nativeCurrency: { decimals: 18, name: "HBAR", symbol: "HBAR" },
-    rpcUrls: { default: { http: ["https://testnet.hashio.io/api"] } },
+    rpcUrls: { default: { http: ["https://previewnet.hashio.io/api"] } },
     blockExplorers: {
-      default: { name: "HashScan", url: "https://hashscan.io/testnet" },
+      default: { name: "HashScan", url: "https://hashscan.io/previewnet" },
     },
-    baseTokenAddress: "0x6c024E280439EEC7f0e816151ef53659F1155af9",
+    baseTokenAddress: "0xe59d6bF014a6ca45249ddC504E554cb8B58547Ed",
   },
 };
 
 const MARKETS: Record<number, Record<string, MarketConfig>> = {
-  296: {
+  297: {
     crypto: {
       id: "crypto",
-      address: "0x1d78d565c900F82CdF7a397a2a8D06c4B6335309",
+      address: "0xafE26eDC44b51B29fbe05744Bf682a5112D04fA8",
       name: "Ethereum/Bitcoin Market",
       description: "Prediction market for Ethereum/Bitcoin price movements",
       dataSource: "crypto-coingecko-eth-btc",
@@ -44,7 +44,7 @@ const MARKETS: Record<number, Record<string, MarketConfig>> = {
   },
 };
 
-export const DEFAULT_CHAIN_ID = 296;
+export const DEFAULT_CHAIN_ID = 297;
 
 export const getChainConfig = (chainId: number): ChainConfig | null =>
   CHAINS[chainId] || null;

@@ -92,7 +92,7 @@ const executeMarketTransaction = async (
       contract.UNIT_DEC(),
       contract.outcomeSlotCount(),
     ]);
-    const decimals = Math.round(Math.log10(Number(unitDec)));
+    const decimals = await contract.decimals();
 
     const deltaOutcomeAmounts = new Array(Number(outcomeSlotCount)).fill(0);
     deltaOutcomeAmounts[assetIndex] =
@@ -189,28 +189,32 @@ export const approveTokens = async (
 };
 
 export const getTransactionCost = async (
+  chainId: number,
   assetIndex: number,
   amount: string,
   provider: ethers.Provider,
   marketAddress: string,
 ) => {
   try {
+    const tokenAddress = getBaseTokenAddress(chainId);
+    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+    const tokenDecimals = await tokenContract.decimals().catch(() => 18);
     const contract = new ethers.Contract(marketAddress, contractABI, provider);
     const [unitDec, outcomeSlotCount] = await Promise.all([
       contract.UNIT_DEC(),
       contract.outcomeSlotCount(),
     ]);
-    const decimals = Math.round(Math.log10(Number(unitDec)));
+    const decimals = await contract.decimals();
 
     const deltaOutcomeAmounts = new Array(Number(outcomeSlotCount)).fill(0);
     deltaOutcomeAmounts[assetIndex] = ethers.parseUnits(amount, decimals);
 
     const netCost = await contract.calcNetCost(deltaOutcomeAmounts);
     return {
-      cost: Math.abs(parseFloat(ethers.formatUnits(netCost, decimals))).toFixed(
+      cost: Math.abs(parseFloat(ethers.formatUnits(netCost, tokenDecimals))).toFixed(
         6,
       ),
-      decimals,
+      tokenDecimals,
     };
   } catch (error) {
     console.error("Error calculating transaction cost:", error);
