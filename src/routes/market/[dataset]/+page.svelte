@@ -27,13 +27,18 @@
   import { initializeAppKit } from "$lib/appkit";
   import { browser } from "$app/environment";
   import { getChartColor } from "$lib/theme";
-  import { getMarketAddress, getMarketConfig } from "$lib/config/index";
+  import {
+    getMarketAddress,
+    getMarketConfig,
+    getChainConfig,
+  } from "$lib/config/index";
   import { currentChainId, currentChain } from "$lib/chainManager";
   import ChartColumnBig from "@lucide/svelte/icons/chart-column-big";
 
   const { dataset } = page.params;
   let contractAddress = getMarketAddress(currentChainId, dataset!);
   let marketConfig = getMarketConfig(currentChainId, dataset!);
+  let chainConfig = getChainConfig(currentChainId);
 
   let assetNames = $state<string[]>([]);
   let dataRows = $state<number[][]>([]);
@@ -45,7 +50,8 @@
   let userShares = $state<number[]>([]);
   let selectedAsset = $state("");
   let amount = $state(1);
-  let decimals = $state(18);
+  let contractDecimals = $state(10);
+  let tokenDecimals = $state(18);
   let combinedMode = $state(false);
   let isBuying = $state(false);
   let isSelling = $state(false);
@@ -86,11 +92,11 @@
       if (assetIndex !== -1)
         deltaOutcomeAmounts[assetIndex] = ethers.parseUnits(
           amount.toString(),
-          decimals,
+          contractDecimals,
         );
       const netCost = await contract.calcNetCost(deltaOutcomeAmounts);
       price = Math.abs(
-        parseFloat(ethers.formatUnits(netCost, decimals)),
+        parseFloat(ethers.formatUnits(netCost, tokenDecimals)),
       ).toFixed(2);
     } catch (error) {
       console.error("Error fetching price from contract:", error);
@@ -110,7 +116,7 @@
         assetNames.map((_, i) => contract.calcMarginalPrice(i)),
       );
       marginalPrices = prices.map((p) =>
-        parseFloat(ethers.formatUnits(p, decimals)),
+        parseFloat(ethers.formatUnits(p, tokenDecimals)),
       );
     } catch (error) {
       console.error("Error fetching marginal prices:", error);
@@ -135,10 +141,12 @@
         getChainProvider(currentChainId),
       );
       const shares = await Promise.all(
-        assetNames.map((_, i) => contract.userShares(userAddress, i)),
+        assetNames.map((_, i) =>
+          contract.balanceOf(userAddress, contract.shareId(1, 1, i)),
+        ),
       );
       userShares = shares.map((share) =>
-        parseFloat(ethers.formatUnits(share, decimals)),
+        parseFloat(ethers.formatUnits(share, contractDecimals)),
       );
     } catch (error) {
       console.error("Error fetching user shares:", error);
@@ -174,8 +182,13 @@
           contractABI,
           getChainProvider(currentChainId),
         );
-        const unitDec = await contract.UNIT_DEC();
-        decimals = Math.round(Math.log10(Number(unitDec)));
+        const tokenContract = new ethers.Contract(
+          chainConfig?.baseTokenAddress || "",
+          contractABI,
+          getChainProvider(currentChainId),
+        );
+        contractDecimals = await contract.decimals();
+        tokenDecimals = await tokenContract.decimals();
         await Promise.all([
           getContractPrice(),
           getMarginalPrices(),
@@ -198,6 +211,7 @@
       const assetIndex = assetNames.indexOf(selectedAsset);
       if (assetIndex === -1) return;
       const cost = await getTransactionCost(
+        currentChainId,
         assetIndex,
         amount.toString(),
         ethersProvider,
@@ -364,7 +378,8 @@
       !!contractAddress &&
       Array.isArray(assetNames) &&
       assetNames.length > 0 &&
-      typeof decimals === "number" &&
+      typeof contractDecimals === "number" &&
+      typeof tokenDecimals === "number" &&
       selectedAsset !== "" &&
       amount != null &&
       Number(amount) > 0;
