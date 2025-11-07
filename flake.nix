@@ -13,7 +13,6 @@
         bun
         nil
         nodejs
-        opencode
       ];
     };
   };
