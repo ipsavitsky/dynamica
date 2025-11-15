@@ -2,20 +2,21 @@
  * Hedera Testnet Deployed Contracts:
  *
  * Core Contracts:
- * - Factory: 0x99589da2f5d1c63CF0158D65b4f1B39Cfd4b639D
- * - Mock Token (Base Token): 0x2B61Aac649b806B63B72Aa21ED781D03E11A93aC
- * - Market Maker: 0xF0a629a91efa2b77ab54775b03bF0f617961fAb5
- * - Market Resolution Manager: 0xb555Cf2f92Ca6778b556301e0C4516a5015e5f9b
+ * - Factory: 0x42DDd2c74C8EE834Cb8d34397c78aB3673CA251e
+ * - Mock Token (Base Token): 0xcA18eD1877466C5bD2208BDBF83C55cdd436f381
+ * - Real Market: 0x8A780f6dCd0e3d99a1F697147Bf0155707028bD8
+ * - Market Resolution Manager: 0xd26ef27ACdcb87Abe3B5d1333f87D1a3ac9843ae
+ * - LSMR Math External: 0xE835cc1A7BcD1766928f62d612dC338c2c6623C8
  *
  * Oracle & Resolution Modules:
- * - ETH/USD Aggregator: 0xEbB95805793153e2a0E009BE428fc7f38c9A3432
- * - BTC/USD Aggregator: 0x52aE00C725BB1dB0788f8e0496748e8DAE7C3580
- * - FTSO V2: 0xbd1A70c6775b1E67D9c06E6a4a7387350EE24259
- * - Resolution Module Chainlink (Implementation): 0x61F5B93e26d078C99351f90949758784CDA9c5F4
- * - Resolution Module FTSO (Implementation): 0xE4D493ECf7FFD6D79f80cf0763a2498c406F547D
+ * - ETH/USD Aggregator: 0x8d8E0f9a6EbE78756359095F35aF0032BBCf9D90
+ * - BTC/USD Aggregator: 0x83F3F82244AA7B2B8FF10baA10eF5e50AAb7631E
+ * - FTSO V2: 0xc7cf98DeA8e244D5B5E34870D451ED1BFb5B3570
+ * - Resolution Module Chainlink (Implementation): 0xC196fb3e42DbaA76D6E0DbeC0F385B951519Ab84
+ * - Resolution Module FTSO (Implementation): 0x303feaE5b34C19360E35E328FDe212F9695ea61d
  *
  * Dynamica Implementation:
- * - Dynamica (Implementation): 0xEA395Df1ACc41B9139c815B798207379833f9323
+ * - Dynamica (Implementation): 0x5d3046F879b275cd842aA771c0ebb6bFe2bcceD5
  */
 
 export interface ChainConfig {
@@ -46,7 +47,7 @@ const CHAINS: Record<number, ChainConfig> = {
     blockExplorers: {
       default: { name: "HashScan", url: "https://hashscan.io/testnet" },
     },
-    baseTokenAddress: "0x2B61Aac649b806B63B72Aa21ED781D03E11A93aC",
+    baseTokenAddress: "0xcA18eD1877466C5bD2208BDBF83C55cdd436f381",
   },
 };
 
@@ -54,7 +55,7 @@ const MARKETS: Record<number, Record<string, MarketConfig>> = {
   296: {
     crypto: {
       id: "crypto",
-      address: "0xF0a629a91efa2b77ab54775b03bF0f617961fAb5",
+      address: "0x8A780f6dCd0e3d99a1F697147Bf0155707028bD8",
       name: "Ethereum/Bitcoin Market",
       description: "Prediction market for Ethereum/Bitcoin price movements",
       dataSource: "crypto-coingecko-eth-btc",
